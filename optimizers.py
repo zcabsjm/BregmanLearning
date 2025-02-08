@@ -259,4 +259,60 @@ class lamda_scheduler:
                     
         if verbosity > 0:
             print('Lamda was set to:', self.group['reg'].mu, ', cooldown on:',self.cooldown_val)
+
+
+class LinBregHeavyBall(torch.optim.Optimizer):
+    def __init__(self, params, lr=1e-3, reg=reg.reg_none(), delta=1.0, momentum=0.0):
+        if lr < 0.0:
+            raise ValueError("Invalid learning rate")
+        defaults = dict(lr=lr, reg=reg, delta=delta, momentum=momentum)
+        super(LinBregHeavyBall, self).__init__(params, defaults)
     
+    @torch.no_grad()
+    def step(self, closure=None):
+        for group in self.param_groups:
+            delta = group['delta']
+            reg = group['reg']
+            step_size = group['lr']
+            momentum = group['momentum']
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                grad = p.grad.data
+                state = self.state[p]
+                if len(state) == 0:
+                    state['step'] = 0
+                    state['sub_grad'] = self.initialize_sub_grad(p, reg, delta)
+                    state['momentum_buffer'] = None
+                # update scheme
+                sub_grad = state['sub_grad']
+                if momentum > 0.0: # with heavy ball momentum
+                    mom_buff = state['momentum_buffer']
+                    if mom_buff is None:
+                        mom_buff = torch.zeros_like(grad)
+                    # heavy ball momentum update: v = momentum*v + step_size*grad
+                    mom_buff.mul_(momentum)
+                    mom_buff.add_(step_size * grad)
+                    state['momentum_buffer'] = mom_buff
+                    # update subgradient with the momentum buffer
+                    sub_grad.add_(-mom_buff)
+                else: # without momentum
+                    sub_grad.add_(-step_size * grad)
+                p.data = reg.prox(delta * sub_grad, delta)
+    
+    def initialize_sub_grad(self, p, reg, delta):
+        p_init = p.data.clone()
+        return 1 / delta * p_init + reg.sub_grad(p_init)
+    
+    @torch.no_grad()
+    def evaluate_reg(self):
+        reg_vals = []
+        for group in self.param_groups:
+            group_reg_val = 0.0
+            delta = group['delta']
+            reg = group['reg']
+            for p in group['params']:
+                group_reg_val += reg(p)
+            reg_vals.append(group_reg_val)
+        return reg_vals
+
