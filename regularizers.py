@@ -115,3 +115,32 @@ class reg_soft_bernoulli:
     
     def sub_grad(self, v):
         return self.lamda * torch.sign(v)
+    
+
+class reg_nuclear_conv:
+    """
+    Applies a nuclear norm penalty to convolution weights.
+    """
+    def __init__(self, lamda=1.0):
+        self.lamda = lamda
+
+    def __call__(self, x):
+        # Flatten to 2D: [out_ch*in_ch, kernel_height*kernel_width]
+        mat = x.view(x.shape[0]*x.shape[1], -1)
+        _, S, _ = torch.svd(mat, some=False)
+        svs = S
+        return self.lamda * torch.sum(svs)
+
+    def prox(self, x, delta=1.0):
+        # The proximal operator for nuclear norm is singular-value soft-thresholding
+        mat = x.view(x.shape[0]*x.shape[1], -1)
+        U, S, Vh = torch.svd(mat, some=False)
+        S_thresh = torch.clamp(S - self.lamda * delta, min=0.0)
+        X_thresh = (U * S_thresh.unsqueeze(-2)) @ Vh
+        return X_thresh.view(*x.shape)
+
+    def sub_grad(self, x):
+        mat = x.view(x.shape[0]*x.shape[1], -1)
+        U, S, Vh = torch.svd(mat, some=False)
+        grad = U @ Vh
+        return self.lamda * grad.view(*x.shape)

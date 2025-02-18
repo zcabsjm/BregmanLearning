@@ -20,7 +20,7 @@ def train_step(conf, model, opt, train_loader, verbosity = 1):
             
         
         loss.backward()
-        opt.step()
+        opt.step() # <-- updates weights (including conv kernels)
         
         # for classification tasks we want to evaluate the accuracy
         if conf.eval_acc:

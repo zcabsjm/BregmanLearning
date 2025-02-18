@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
+# setting up the CNN architecture
 class mnist_conv(nn.Module):
     def __init__(self, mean = 0.0, std = 1.0):
         super(mnist_conv, self).__init__()
