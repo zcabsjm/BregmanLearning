@@ -215,7 +215,65 @@ def conv_sparsity(model):
         return 0
     else:
         return nnz/total
-        
+
+def conv_effective_rank(model, epsilon=1e-3): # consider using fractional energy or stable rank
+    """
+    Computes the average effective rank of all Conv2d layers.
+    The effective rank of a single layer is the count of singular values > epsilon.
+    """
+    total_rank = 0
+    total_layers = 0
+
+    for m in model.modules():
+        if isinstance(m, torch.nn.Conv2d):
+            w = m.weight
+            # Flatten each filter to one row: (out_channels, in_channels*kernel_height*kernel_width)
+            mat = w.view(w.shape[0], -1)
+
+            # SVD on the flattened matrix
+            U, S, V = torch.svd(mat, some=True)
+
+            # Count how many singular values exceed epsilon
+            rank_layer = (S > epsilon).sum().item()
+            total_rank += rank_layer
+            total_layers += 1
+
+    if total_layers == 0:
+        return 0.0
+    else:
+        return total_rank / total_layers
+
+def conv_effective_rank_ratio(model, epsilon=1e-3):
+    """
+    Computes the average ratio of effective rank to the maximum rank
+    across all convolutional layers in the model. The effective rank
+    is the count of singular values above epsilon. The maximum rank
+    for a flattened weight matrix (m, n) is min(m, n).
+    """
+    total_ratio = 0.0
+    total_layers = 0
+
+    for m in model.modules():
+        if isinstance(m, torch.nn.Conv2d):
+            w = m.weight
+            # Flatten shape: (m, n) = (out_ch * in_ch, kernel_height * kernel_width)
+            m_dim = w.size(0) * w.size(1)  # out_ch*in_ch
+            n_dim = w.size(2) * w.size(3)  # kH*kW
+            max_rank = min(m_dim, n_dim)
+
+            mat = w.view(m_dim, n_dim)
+            U, S, V = torch.svd(mat, some=True)  # economy SVD
+            effective_rank = (S > epsilon).sum().item()
+
+            # Ratio of effective rank to max rank
+            layer_ratio = effective_rank / max_rank
+            total_ratio += layer_ratio
+            total_layers += 1
+
+    if total_layers == 0:
+        return 0.0
+    else:
+        return total_ratio / total_layers
 
 def get_weights(model):
     for m in model.modules():

@@ -120,27 +120,39 @@ class reg_soft_bernoulli:
 class reg_nuclear_conv:
     """
     Applies a nuclear norm penalty to convolution weights.
+    This flattens conv weights into a 2D matrix, applies SVD,
+    and performs singular-value soft-thresholding.
     """
     def __init__(self, lamda=1.0):
         self.lamda = lamda
 
     def __call__(self, x):
-        # Flatten to 2D: [out_ch*in_ch, kernel_height*kernel_width]
+        # Flatten to shape [m, n] = [out_ch*in_ch, kernel_h*kernel_w]
         mat = x.view(x.shape[0]*x.shape[1], -1)
-        _, S, _ = torch.svd(mat, some=False)
-        svs = S
-        return self.lamda * torch.sum(svs)
+        # Use economy SVD so shapes match
+        U, S, V = torch.svd(mat, some=True)
+        return self.lamda * torch.sum(S)
 
     def prox(self, x, delta=1.0):
-        # The proximal operator for nuclear norm is singular-value soft-thresholding
+        # Flatten
         mat = x.view(x.shape[0]*x.shape[1], -1)
-        U, S, Vh = torch.svd(mat, some=False)
+        U, S, V = torch.svd(mat, some=True)
+        Vh = V.t()
+
+        # Soft-threshold the singular values
         S_thresh = torch.clamp(S - self.lamda * delta, min=0.0)
-        X_thresh = (U * S_thresh.unsqueeze(-2)) @ Vh
+        
+        # Multiply each column of U by the corresponding singular value
+        X_thresh = (U * S_thresh.unsqueeze(0)) @ Vh
+        
+        # Reshape back
         return X_thresh.view(*x.shape)
 
     def sub_grad(self, x):
+        # Subgradient is U @ Vᵀ
         mat = x.view(x.shape[0]*x.shape[1], -1)
-        U, S, Vh = torch.svd(mat, some=False)
+        U, S, V = torch.svd(mat, some=True)
+        Vh = V.t()
+        
         grad = U @ Vh
         return self.lamda * grad.view(*x.shape)
