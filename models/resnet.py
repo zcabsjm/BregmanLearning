@@ -63,6 +63,8 @@ class ResNet(nn.Module):
     def __init__(self, block, num_blocks, num_classes=10, mean=0., std=1.):
         super(ResNet, self).__init__()
         self.in_planes = 64
+        self.mean = mean
+        self.std = std
 
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3,
                                stride=1, padding=1, bias=False)
@@ -82,7 +84,7 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        out = (x - self.mean)/self.std
+        out = (x - self.mean)/self.std # normalize input
         out = F.relu(self.bn1(self.conv1(x)))
         out = self.layer1(out)
         out = self.layer2(out)

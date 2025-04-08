@@ -243,7 +243,7 @@ def conv_effective_rank(model, epsilon=1e-3): # consider using fractional energy
     else:
         return total_rank / total_layers
 
-def conv_effective_rank_ratio(model, epsilon=1e-3):
+def conv_effective_rank_ratio(model, epsilon=1e-6):
     """
     Computes the average ratio of effective rank to the maximum rank
     across all convolutional layers in the model. The effective rank
@@ -274,6 +274,46 @@ def conv_effective_rank_ratio(model, epsilon=1e-3):
         return 0.0
     else:
         return total_ratio / total_layers
+    
+
+
+def linear_effective_rank_ratio(model, epsilon=1e-6):
+    """
+    Computes the proportion of singular values above threshold epsilon
+    for each fully connected layer, then averages these proportions.
+    """
+    layer_ratios = []
+
+    for m in model.modules():
+        if isinstance(m, torch.nn.Linear):
+            w = m.weight
+            U, S, V = torch.svd(w, some=True)
+            
+            # Proportion of singular values above threshold
+            ratio = (S > epsilon).sum().item() / len(S)
+            layer_ratios.append(ratio)
+            
+    if not layer_ratios:
+        return 0.0
+    else:
+        return sum(layer_ratios) / len(layer_ratios)
+
+def get_linear_layer_ranks(model, epsilon=1e-6):
+    """
+    Returns the effective rank ratio for each individual fully connected layer.
+    """
+    layer_ranks = {}
+    
+    for name, m in model.named_modules():
+        if isinstance(m, torch.nn.Linear):
+            w = m.weight
+            U, S, V = torch.svd(w, some=True)
+            
+            # Proportion of singular values above threshold
+            ratio = (S > epsilon).sum().item() / len(S)
+            layer_ranks[name] = ratio
+            
+    return layer_ranks
 
 def get_weights(model):
     for m in model.modules():

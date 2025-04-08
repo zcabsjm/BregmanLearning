@@ -156,3 +156,21 @@ class reg_nuclear_conv:
         
         grad = U @ Vh
         return self.lamda * grad.view(*x.shape)
+
+class reg_nuclear_linear:
+    def __init__(self, lamda=1.0):
+        self.lamda = lamda
+
+    def __call__(self, x):
+        # x is [out_features, in_features]
+        U, S, V = torch.svd(x, some=True)
+        return self.lamda * torch.sum(S)
+
+    def prox(self, x, delta=1.0):
+        U, S, V = torch.svd(x, some=True)
+        S_thresh = torch.clamp(S - self.lamda * delta, min=0.0)
+        return (U * S_thresh.unsqueeze(0)) @ V.t()
+
+    def sub_grad(self, x):
+        U, S, V = torch.svd(x, some=True)
+        return self.lamda * (U @ V.t())

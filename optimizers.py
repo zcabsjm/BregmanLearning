@@ -316,3 +316,51 @@ class LinBregHeavyBall(torch.optim.Optimizer):
             reg_vals.append(group_reg_val)
         return reg_vals
 
+
+class NuclearLinBreg(LinBreg):
+    """Modified LinBreg that correctly handles nuclear norm regularization"""
+    
+    @torch.no_grad()
+    def step(self, closure=None):
+        for group in self.param_groups:
+            delta = group['delta']
+            reg_instance = group['reg'] 
+            step_size = group['lr']
+            momentum = group['momentum']
+            
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                
+                # get grad and state
+                grad = p.grad.data
+                state = self.state[p]
+                
+                if len(state) == 0:
+                    state['step'] = 0
+                    state['sub_grad'] = self.initialize_sub_grad(p, reg_instance, delta)
+                    state['momentum_buffer'] = None
+                
+                # Check if using nuclear norm regularization - fixed variable name conflict
+                if isinstance(reg_instance, reg.reg_nuclear_linear) or isinstance(reg_instance, reg.reg_nuclear_conv):
+                    # For nuclear norm, use direct proximal gradient approach (like ProxSGD)
+                    p.data.add_(-step_size * grad)
+                    p.data = reg_instance.prox(p.data, step_size)
+                else:
+                    # For other regularizers, use standard LinBreg approach
+                    sub_grad = state['sub_grad']
+                    
+                    if momentum > 0.0:
+                        mom_buff = state['momentum_buffer']
+                        if mom_buff is None:
+                            mom_buff = torch.zeros_like(grad)
+                        
+                        mom_buff.mul_(momentum)
+                        mom_buff.add_((1-momentum)*step_size*grad)
+                        state['momentum_buffer'] = mom_buff
+                        sub_grad.add_(-mom_buff)
+                    else:
+                        sub_grad.add_(-step_size * grad)
+                    
+                    p.data = reg_instance.prox(delta * sub_grad, delta)
+
