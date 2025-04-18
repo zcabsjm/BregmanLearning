@@ -174,3 +174,62 @@ class reg_nuclear_linear:
     def sub_grad(self, x):
         U, S, V = torch.svd(x, some=True)
         return self.lamda * (U @ V.t())
+
+class reg_nuclear_linear_truncated:
+    def __init__(self, lamda=1.0, rank=None, niter=2):
+        self.lamda = lamda
+        self.rank = rank  # Number of singular values/vectors to compute
+        self.niter = niter  # Power iterations for accuracy
+
+    def _svd(self, x):
+        if self.rank is not None and self.rank < min(x.shape):
+            # Use randomized truncated SVD
+            U, S, Vh = torch.linalg.svd_lowrank(x, q=self.rank, niter=self.niter)
+            V = Vh.t()
+        else:
+            # Fallback to full SVD
+            U, S, V = torch.svd(x, some=True)
+        return U, S, V
+
+    def __call__(self, x):
+        U, S, V = self._svd(x)
+        return self.lamda * torch.sum(S)
+
+    def prox(self, x, delta=1.0):
+        U, S, V = self._svd(x)
+        S_thresh = torch.clamp(S - self.lamda * delta, min=0.0)
+        return (U * S_thresh.unsqueeze(0)) @ V.t()
+
+    def sub_grad(self, x):
+        U, S, V = self._svd(x)
+        return self.lamda * (U @ V.t())
+
+class reg_nuclear_conv_truncated:
+    def __init__(self, lamda=1.0, rank=None, niter=2):
+        self.lamda = lamda
+        self.rank = rank
+        self.niter = niter
+
+    def _svd(self, x):
+        mat = x.view(x.shape[0]*x.shape[1], -1)
+        if self.rank is not None and self.rank < min(mat.shape):
+            U, S, Vh = torch.linalg.svd_lowrank(mat, q=self.rank, niter=self.niter)
+            V = Vh.t()
+        else:
+            U, S, V = torch.svd(mat, some=True)
+        return U, S, V, x.shape
+
+    def __call__(self, x):
+        U, S, V, shape = self._svd(x)
+        return self.lamda * torch.sum(S)
+
+    def prox(self, x, delta=1.0):
+        U, S, V, shape = self._svd(x)
+        S_thresh = torch.clamp(S - self.lamda * delta, min=0.0)
+        X_thresh = (U * S_thresh.unsqueeze(0)) @ V.t()
+        return X_thresh.view(*shape)
+
+    def sub_grad(self, x):
+        U, S, V, shape = self._svd(x)
+        grad = U @ V.t()
+        return self.lamda * grad.view(*shape)
