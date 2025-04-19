@@ -184,8 +184,7 @@ class reg_nuclear_linear_truncated:
     def _svd(self, x):
         if self.rank is not None and self.rank < min(x.shape):
             # Use randomized truncated SVD
-            U, S, Vh = torch.linalg.svd_lowrank(x, q=self.rank, niter=self.niter)
-            V = Vh.t()
+            U, S, V = torch.svd_lowrank(x, q=self.rank, niter=self.niter)
         else:
             # Fallback to full SVD
             U, S, V = torch.svd(x, some=True)
@@ -213,8 +212,7 @@ class reg_nuclear_conv_truncated:
     def _svd(self, x):
         mat = x.view(x.shape[0]*x.shape[1], -1)
         if self.rank is not None and self.rank < min(mat.shape):
-            U, S, Vh = torch.linalg.svd_lowrank(mat, q=self.rank, niter=self.niter)
-            V = Vh.t()
+            U, S, V = torch.svd_lowrank(mat, q=self.rank, niter=self.niter)
         else:
             U, S, V = torch.svd(mat, some=True)
         return U, S, V, x.shape
