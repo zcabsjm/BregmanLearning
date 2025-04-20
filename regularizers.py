@@ -176,7 +176,7 @@ class reg_nuclear_linear:
         return self.lamda * (U @ V.t())
 
 class reg_nuclear_linear_truncated:
-    def __init__(self, lamda=1.0, rank=None, niter=4):
+    def __init__(self, lamda=1.0, rank=None, niter=2):
         self.lamda = lamda
         self.rank = rank  # Number of singular values/vectors to compute
         self.niter = niter  # Power iterations for accuracy
