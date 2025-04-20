@@ -176,7 +176,7 @@ class reg_nuclear_linear:
         return self.lamda * (U @ V.t())
 
 class reg_nuclear_linear_truncated:
-    def __init__(self, lamda=1.0, rank=None, niter=2):
+    def __init__(self, lamda=1.0, rank=None, niter=4):
         self.lamda = lamda
         self.rank = rank  # Number of singular values/vectors to compute
         self.niter = niter  # Power iterations for accuracy
@@ -195,8 +195,15 @@ class reg_nuclear_linear_truncated:
         return self.lamda * torch.sum(S)
 
     def prox(self, x, delta=1.0):
+
+        # Get SVD
         U, S, V = self._svd(x)
-        S_thresh = torch.clamp(S - self.lamda * delta, min=0.0)
+        
+        # Calculate threshold
+        threshold = self.lamda * delta
+        S_thresh = torch.clamp(S - threshold, min=0.0)
+        
+        # Reconstruction
         return (U * S_thresh.unsqueeze(0)) @ V.t()
 
     def sub_grad(self, x):
