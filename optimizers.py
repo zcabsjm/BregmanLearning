@@ -332,7 +332,6 @@ class NuclearLinBreg(LinBreg):
                 if p.grad is None:
                     continue
                 
-                # get grad and state
                 grad = p.grad.data
                 state = self.state[p]
                 
@@ -341,8 +340,12 @@ class NuclearLinBreg(LinBreg):
                     state['sub_grad'] = self.initialize_sub_grad(p, reg_instance, delta)
                     state['momentum_buffer'] = None
                 
-                # Check if using nuclear norm regularization - fixed variable name conflict
-                if isinstance(reg_instance, reg.reg_nuclear_linear) or isinstance(reg_instance, reg.reg_nuclear_conv):
+                if (
+                    isinstance(reg_instance, reg.reg_nuclear_linear)
+                    or isinstance(reg_instance, reg.reg_nuclear_conv)
+                    or isinstance(reg_instance, reg.reg_nuclear_linear_truncated)
+                    or isinstance(reg_instance, reg.reg_nuclear_conv_truncated)
+                ):
                     # For nuclear norm, use direct proximal gradient approach (like ProxSGD)
                     p.data.add_(-step_size * grad)
                     p.data = reg_instance.prox(p.data, step_size)
