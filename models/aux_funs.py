@@ -315,6 +315,30 @@ def get_linear_layer_ranks(model, epsilon=1e-6):
             
     return layer_ranks
 
+def get_conv_layer_ranks(model, epsilon=1e-6):
+    """
+    Returns the effective rank ratio for each individual convolutional layer.
+    """
+    layer_ranks = {}
+    
+    for name, m in model.named_modules():
+        if isinstance(m, torch.nn.Conv2d):
+            w = m.weight
+            # Reshape to 2D: (out_channels * in_channels, kernel_height * kernel_width)
+            mat = w.view(w.size(0) * w.size(1), -1)
+            
+            # Compute SVD on the reshaped matrix
+            U, S, V = torch.svd(mat, some=True)
+            
+            # Calculate maximum possible rank
+            max_rank = min(mat.shape[0], mat.shape[1])
+            
+            # Proportion of singular values above threshold
+            ratio = (S > epsilon).sum().item() / max_rank
+            layer_ranks[name] = ratio
+            
+    return layer_ranks
+
 def get_weights(model):
     for m in model.modules():
         if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Conv2d):
