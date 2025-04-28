@@ -1,0 +1,3402 @@
+This file is a merged representation of a subset of the codebase, containing files not matching ignore patterns, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching these patterns are excluded: models/resnet.py, models/vgg.py, notebooks/ResNet-Classification.ipynb, notebooks/Skip-Encoder.ipynb, notebooks/VGG-Classification.ipynb, notebooks/DenseNet.ipynb
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+models/
+  aux_funs.py
+  fully_connected.py
+  mnist_conv.py
+notebooks/
+  ConvNet-Classification.ipynb
+  MLP-Classification.ipynb
+utils/
+  configuration.py
+  datasets.py
+  gannt_chart.py
+.gitignore
+LICENSE
+optimizers.py
+README.md
+regularizers.py
+requirements.txt
+train.py
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="models/fully_connected.py">
+import torch.nn as nn
+import torch.nn.functional as F
+import torch
+
+# class Flatten(nn.Module):
+#     def forward(self, x):
+#         return x.view(x.size(0), -1)
+
+class fully_connected(nn.Module):
+    def __init__(self, sizes, act_fn, mean=0.0, std=1.0):
+        super(fully_connected, self).__init__()
+        self.mean = mean
+        self.std = std
+        
+        self.act_fn = act_fn
+        layer_list = [nn.Flatten()]
+        for i in range(len(sizes)-1):
+            layer_list.append(nn.Linear(sizes[i], sizes[i+1]))
+            layer_list.append(self.act_fn)
+            
+        self.layers = nn.Sequential(*layer_list)
+        
+        
+    def forward(self, x):
+        x = (x-self.mean)/self.std
+        return self.layers(x)
+</file>
+
+<file path="utils/gannt_chart.py">
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.patches import Patch
+import matplotlib.font_manager as fm
+import datetime as dt
+
+def create_gantt_chart(tasks, fig_size=(12, 8), colors=None, title="Project Timeline", max_weeks=28):
+    """
+    Create a Gantt chart for project visualization with weeks on x-axis.
+    
+    Parameters:
+    -----------
+    tasks : list of dict
+        List of task dictionaries with keys:
+        - 'name': Task name
+        - 'start': Start day (days from project start)
+        - 'duration': Task duration in days
+        - 'status': Task status for color coding ('scheduled-unused', 'scheduled-used', 'late', 'extension')
+        - 'completion': Completion percentage (optional, 0-100)
+        - 'deliverable': Optional deliverable text (no longer displayed)
+    fig_size : tuple
+        Figure size (width, height)
+    colors : dict
+        Dict mapping status to colors
+    title : str
+        Chart title
+    max_weeks : int
+        Maximum number of weeks to display on x-axis
+        
+    Returns:
+    --------
+    fig, ax : matplotlib figure and axis objects
+    """
+    # Set font to Times New Roman for all text elements
+    plt.rcParams['font.family'] = 'Times New Roman'
+    
+    # Default colors for the requested status categories
+    if colors is None:
+        colors = {
+            'scheduled-unused': '#add8e6',  # Light blue
+            'scheduled-used': '#1f77b4',    # Dark blue
+            'late': '#d62728',              # Red
+            'extension': '#2ca02c',         # Green
+            'default': '#7f7f7f'            # Gray for unspecified status
+        }
+    
+    # Sort tasks by start date
+    tasks = sorted(tasks, key=lambda x: x['start'])
+    
+    # Create figure and axis with squared background
+    fig, ax = plt.subplots(figsize=fig_size, facecolor='#f0f0f0')
+    ax.set_facecolor('#f0f0f0')
+    
+    # Track the y positions and labels
+    labels = []
+    y_positions = []
+    
+    # Convert days to weeks for display (7 days per week)
+    days_to_weeks = lambda days: days / 7
+    
+    # Plot each task as a horizontal bar
+    for i, task in enumerate(tasks):
+        labels.append(task['name'])
+        y_positions.append(i)
+        
+        # Convert days to weeks for plotting
+        start_week = days_to_weeks(task['start'])
+        duration_weeks = days_to_weeks(task['duration'])
+        
+        status = task.get('status', 'default')
+        color = colors.get(status, colors['default'])
+        
+        # Add the main task bar
+        ax.barh(i, duration_weeks, left=start_week, color=color, 
+                height=0.5, alpha=0.8, edgecolor='black')
+        
+        # Add completion indicator if available
+        if 'completion' in task and task['completion'] > 0:
+            completion_width = duration_weeks * (task['completion'] / 100)
+            ax.barh(i, completion_width, left=start_week, color=color, 
+                    height=0.5, alpha=1.0)
+    
+    # Set up the axes
+    ax.set_yticks(range(len(tasks)))
+    ax.set_yticklabels(labels)
+    
+    # Set up week-based x-axis
+    ax.set_xlabel('Weeks from Project Start')
+    ax.set_xlim(0, max_weeks)
+    ax.set_xticks(range(0, max_weeks + 1, 2))  # Every 2 weeks
+    
+    # Set title in bold
+    ax.set_title(title, fontweight='bold', fontsize=14)
+    
+    # Add grid lines for squared background look
+    ax.grid(True, alpha=0.3, linestyle='--')
+    
+    # Create legend for status categories
+    legend_elements = [
+        Patch(facecolor=colors['scheduled-unused'], label='Scheduled (unused)'),
+        Patch(facecolor=colors['scheduled-used'], label='Scheduled (used)'),
+        Patch(facecolor=colors['late'], label='Late'),
+        Patch(facecolor=colors['extension'], label='Extension')
+    ]
+    ax.legend(handles=legend_elements, loc='upper right')
+    
+    # Add border around the plot area
+    for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_color('black')
+        spine.set_linewidth(1)
+    
+    # Add vertical "Deliverables" title on the left side
+    fig.text(0.02, 0.5, 'Deliverables', rotation=90, fontsize=14, 
+             fontweight='bold', va='center', ha='center')
+    
+    # Tight layout with padding to accommodate the vertical title
+    plt.tight_layout(rect=[0.05, 0, 1, 1])  # Left padding for vertical title
+    
+    return fig, ax
+
+
+def demo_gantt_chart():
+    """
+    Create a sample Gantt chart with tasks and the new color coding.
+    """
+    # Sample tasks for a project
+    tasks = [
+        {
+            'name': 'Background Readings', 
+            'start': 0, 
+            'duration': 21, 
+            'status': 'scheduled-used', 
+            'completion': 100,
+            'deliverable': 'Literature Summary'
+        },
+        {
+            'name': 'Problem Definition', 
+            'start': 14, 
+            'duration': 10, 
+            'status': 'scheduled-used', 
+            'completion': 100
+        },
+        {
+            'name': 'Data Collection', 
+            'start': 21, 
+            'duration': 14, 
+            'status': 'scheduled-used', 
+            'completion': 90,
+            'deliverable': 'Dataset'
+        },
+        {
+            'name': 'Algorithm Design', 
+            'start': 28, 
+            'duration': 21, 
+            'status': 'scheduled-used', 
+            'completion': 75,
+            'deliverable': 'Design Document'
+        },
+        {
+            'name': 'Implementation', 
+            'start': 42, 
+            'duration': 28, 
+            'status': 'scheduled-used', 
+            'completion': 60
+        },
+        {
+            'name': 'Unit Testing', 
+            'start': 56, 
+            'duration': 14, 
+            'status': 'late', 
+            'completion': 40,
+            'deliverable': 'Test Report'
+        },
+        {
+            'name': 'Integration Testing', 
+            'start': 63, 
+            'duration': 14, 
+            'status': 'late', 
+            'completion': 20
+        },
+        {
+            'name': 'Documentation', 
+            'start': 70, 
+            'duration': 21, 
+            'status': 'scheduled-unused', 
+            'completion': 10,
+            'deliverable': 'User Manual'
+        },
+        {
+            'name': 'Progress Meetings', 
+            'start': 0, 
+            'duration': 84, 
+            'status': 'scheduled-used', 
+            'completion': 60
+        },
+        {
+            'name': 'Final Report', 
+            'start': 77, 
+            'duration': 28, 
+            'status': 'extension', 
+            'completion': 0,
+            'deliverable': 'Final Report'
+        }
+    ]
+    
+    fig, ax = create_gantt_chart(tasks, title="Project Progress", max_weeks=28)
+    plt.savefig('project_gantt_chart.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+
+if __name__ == "__main__":
+    demo_gantt_chart()
+</file>
+
+<file path=".gitignore">
+# Created by https://www.toptal.com/developers/gitignore/api/python
+# Edit at https://www.toptal.com/developers/gitignore?templates=python
+
+### Python ###
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+#   For a library or package, you might want to ignore these files since the code is
+#   intended to run in multiple environments; otherwise, check them in:
+# .python-version
+
+# pipenv
+#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
+#   However, in case of collaboration, if having platform-specific dependencies or dependencies
+#   having no cross-platform support, pipenv may install dependencies that don't work, or not
+#   install all needed dependencies.
+#Pipfile.lock
+
+# PEP 582; used by e.g. github.com/David-OConnor/pyflow
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# End of https://www.toptal.com/developers/gitignore/api/python
+</file>
+
+<file path="LICENSE">
+MIT License
+
+Copyright (c) 2021 Tim Roith
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+</file>
+
+<file path="models/mnist_conv.py">
+import torch.nn as nn
+import torch.nn.functional as F
+import torch
+
+# setting up the CNN architecture
+# 2 conv layers
+# first layer has 64 distinct filters of size 5x5
+# second layer also has 64 filters with kernel size 5x5
+class mnist_conv(nn.Module):
+    def __init__(self, mean = 0.0, std = 1.0):
+        super(mnist_conv, self).__init__()
+        self.act_fn = nn.ReLU()
+        #self.act_fn = nn.LeakyReLU(negative_slope=0.01)
+        #self.act_fn = nn.Softplus()
+        
+        #
+        self.conv = torch.nn.Conv2d
+        self.linear = torch.nn.Linear
+        self.mean = mean
+        self.std = std
+
+        self.layers1 = []
+        self.layers2 = []
+        self.layers1.append(self.conv(1, 64, 5)) # 1 input channel, 64 output channels (i.e no of kernels), 5x5 kernel
+        self.layers1.append(nn.MaxPool2d(2))
+        self.layers1.append(self.act_fn)
+
+        self.layers1.append(self.conv(64, 64, 5))
+        self.layers1.append(nn.MaxPool2d(2))
+        self.layers1.append(self.act_fn)
+
+        self.layers1.append(nn.Flatten())
+
+        self.layers2.append(self.linear(4 * 4 * 64, 128)) # self.layers2 refers to the fully connected layers, we have 2 of them
+        self.layers2.append(self.act_fn)
+
+        self.layers2.append(self.linear(128, 10))
+        #self.layers2.append(torch.nn.Softmax(dim=1))        
+
+        self.layers1 = nn.Sequential(*self.layers1)
+        self.layers2 = nn.Sequential(*self.layers2)
+
+    def forward(self, x):
+        x = (x - self.mean)/self.std
+        x = self.layers1(x)
+        return self.layers2(x)
+
+
+"""
+Here’s the flow from input to output, layer by layer:
+
+Input Normalization
+
+Subtract mean, divide by std.
+First Convolution
+
+Convolution: Conv2d(1, 64, kernel_size=5) generates 64 feature maps from the single input channel.
+Max-Pooling: MaxPool2d(2) halves spatial dimensions.
+Activation: ReLU.
+Second Convolution
+
+Convolution: Conv2d(64, 64, kernel_size=5) keeps 64 channels.
+Max-Pooling: MaxPool2d(2) halves dimensions again.
+Activation: ReLU.
+Flatten
+
+Transforms the pooled feature map (now 4×4×64=1024 elements) into a single vector.
+Fully Connected Layers
+
+Linear(1024 → 128), ReLU.
+Linear(128 → 10).
+Output
+
+Returns a 10-dimensional output (logits), one per MNIST digit class.
+"""
+</file>
+
+<file path="train.py">
+import torch
+import torch.nn.utils.prune as prune
+import models.aux_funs as maf
+
+# train step
+def train_step(conf, model, opt, train_loader, verbosity = 1):
+    model.train()
+    acc = 0
+    tot_loss = 0.0
+    tot_steps = 0
+    for batch_idx, (x, y) in enumerate(train_loader):
+        # get batch data
+        x, y = x.to(conf.device), y.to(conf.device)
+        opt.zero_grad()
+        logits = model(x)
+        loss = conf.loss(logits, y)
+        
+        if hasattr(conf,"weight_reg"):
+            loss += conf.weight_reg(model)
+            
+        
+        loss.backward()
+        opt.step() # <-- updates weights (including conv kernels)
+        
+        # for classification tasks we want to evaluate the accuracy
+        if conf.eval_acc:
+            acc += (logits.max(1)[1] == y).sum().item()
+        
+        tot_loss += loss.item()
+        tot_steps += y.shape[0]
+
+    # print the current accuracy and loss
+    if verbosity > 0: 
+        print(50*"-")
+        print('Train Accuracy:', acc/tot_steps)
+        print('Train Loss:', tot_loss)
+    return {'loss':tot_loss, 'acc':acc/tot_steps}
+
+
+
+
+# validation step
+def validation_step(conf, model, opt, validation_loader, verbosity = 1):
+    acc = 0.0
+    loss = 0.0
+    tot_steps = 0
+    # -------------------------------------------------------------------------
+    # evaluate on validation set
+    if not validation_loader is None:
+        for batch_idx, (x, y) in enumerate(validation_loader):
+            # get batch data
+            x, y = x.to(conf.device), y.to(conf.device)
+
+             # evaluate model on batch
+            logits = model(x)
+
+            # Get classification loss
+            c_loss = conf.loss(logits, y)
+            
+            if conf.eval_acc:
+                acc += (logits.max(1)[1] == y).sum().item()
+            loss += c_loss.item()
+            tot_steps += y.shape[0]
+        tot_acc = acc/tot_steps
+    else:
+        tot_acc = 0.0
+            
+    # ------------------------------------------------------------------------
+    # evaluate sparsity
+    conv_sparse = maf.conv_sparsity(model)
+    linear_sparse = maf.linear_sparsity(model)
+    net_sparse = maf.net_sparsity(model)
+    node_sparse = maf.node_sparsity(model)
+    
+    # ------------------------------------------------------------------------
+    # evaluate regularizers of opt and append to history
+    reg_eval = getattr(opt, "evaluate_reg", None)
+    if callable(reg_eval):
+        reg_vals = opt.evaluate_reg()
+    else:
+        reg_vals = []
+         
+    # print values
+    if verbosity > 0: 
+        print(50*"-")
+        print('Validation Accuracy:', tot_acc)
+        print('Non-zero kernels:', conv_sparse)
+        print('Linear sparsity:', linear_sparse)
+        print('Overall sparsity:', net_sparse)
+        print('Node sparsity:', node_sparse)
+        
+        
+        print('Regularization values per group:', reg_vals)
+    return {'loss':loss, 'acc':tot_acc, 'conv_sparse':conv_sparse, 'linear_sparse':linear_sparse,
+            'reg_vals':reg_vals,'node_sparse':node_sparse}
+
+
+
+
+# test step
+def test(conf, model, test_loader, verbosity=1):
+    model.eval()
+    acc = 0
+    tot_steps = 0
+    loss = 0
+    
+    with torch.no_grad():
+        for batch_idx, (x, y) in enumerate(test_loader):
+            # get batch data
+            x, y = x.to(conf.device), y.to(conf.device)
+            # evaluate
+            pred = model(x)
+            if conf.eval_acc:
+                acc += (pred.max(1)[1] == y).sum().item()
+            
+            c_loss = conf.loss(pred, y)
+            loss += c_loss.item()
+            
+            tot_steps += y.shape[0]
+    
+    # print accuracy
+    if verbosity > 0: 
+        print(50*"-")
+        print('Test Accuracy:', acc/tot_steps)
+    return {'acc':acc/tot_steps, 'loss':loss}
+
+# ------------------------------------------------------------------------
+# Pruning step
+def prune_step(model, a1 = 0.01, a2 = 0.01, conv_group=True):
+    for name, module in model.named_modules():
+        if isinstance(module, torch.nn.Conv2d) and conv_group:
+            prune.ln_structured(module, name='weight', amount=a1,n=2,dim=0)
+            prune.ln_structured(module, name='weight', amount=a1,n=2,dim=1)
+            
+            #prune.remove(module, name='weight')
+        elif isinstance(module, torch.nn.Linear) or isinstance(module, torch.nn.Conv2d):
+            prune.l1_unstructured(module, name='weight', amount=a2)
+            
+            #prune.remove(module, name='weight')
+            
+        
+            
+
+
+class best_model:
+    '''saves the best model'''
+    def __init__(self, best_model=None, gamma = 0.0, goal_acc = 0.0):
+        # stores best seen score and model
+        self.best_score = 0.0
+        
+        # if specified, a copy of the model gets saved into this variable
+        self.best_model = best_model
+
+        # score function
+        def score_fun(train_acc, test_acc):
+            return gamma * train_acc + (1-gamma) * test_acc + (train_acc > goal_acc)
+        self.score_fun = score_fun
+        
+    
+    def __call__(self, train_acc, val_acc, model=None):
+        # evaluate score
+        score = self.score_fun(train_acc, val_acc)
+        if score >= self.best_score:
+            self.best_score = score
+            # store model
+            if self.best_model is not None:
+                self.best_model.load_state_dict(model.state_dict())
+</file>
+
+<file path="utils/datasets.py">
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader, Dataset
+import torch
+import math
+import numbers
+from torch import nn
+from torch.nn import functional as F
+
+import os
+
+
+def get_data_set(conf):
+    train, valid, test, train_loader, valid_loader, test_loader = [None] * 6
+    
+    if conf.data_set == "MNIST":
+        train, test = get_mnist(conf)
+        test_batch_size = 1000
+    elif conf.data_set == "Fashion-MNIST":
+        train, test = get_fashion_mnist(conf)
+        test_batch_size = 1000
+    elif conf.data_set == "CIFAR10":
+        train, test = get_cifar10(conf)
+        test_batch_size = 100
+    elif conf.data_set == "Encoder-MNIST":
+        train, test = get_encoder_mnist(conf)
+        test_batch_size = 1000
+        pin_memory = True
+    else:
+        raise ValueError("Dataset:" + conf.data_set + " not defined")
+    
+    # get loaders fom datasets
+    train_loader, valid_loader, test_loader = train_valid_test_split(conf, train, test,test_batch_size = test_batch_size)
+
+    return train_loader, valid_loader, test_loader
+
+# Get the MNIST dataset and apply transformations
+def get_mnist(conf):
+    transform = transforms.Compose([transforms.ToTensor()])
+    
+    # train and test set
+    train = datasets.MNIST(conf.data_file, train=True, download=conf.download, transform=transform)
+    test = datasets.MNIST(conf.data_file, train=False, download=conf.download, transform=transform)
+    
+    return train, test
+
+# Get the MNIST dataset and apply transformations
+def get_encoder_mnist(conf):
+    transform_aug = []
+    
+    if conf.add_blur:
+        kernel_size = 5
+        sigma=(0.1, 2.0)
+        transform_aug.append(transforms.GaussianBlur(kernel_size, sigma=sigma))
+    
+    transform_aug.append(transforms.ToTensor())
+    
+    if conf.add_noise:
+        transform_aug.append(add_noise(std=0.1))
+    
+    transform_aug = transforms.Compose(transform_aug)
+        
+    transform_clean = transforms.Compose([transforms.ToTensor()])
+       
+    # train and test set
+    train = AutoEncodeDataset(datasets.MNIST(conf.data_file, train=True, download=conf.download), transform_aug, transform_clean)
+    test = AutoEncodeDataset(datasets.MNIST(conf.data_file, train=False, download=conf.download), transform_aug, transform_clean)
+    
+    return train, test
+
+# Get the Fashion-MNIST dataset and apply transformations
+def get_fashion_mnist(conf):
+    transform = transforms.Compose([transforms.ToTensor()])
+    
+    # train and test set
+    train = datasets.FashionMNIST(conf.data_file, train=True, download=conf.download,transform=transform)
+    test = datasets.FashionMNIST(conf.data_file, train=False, download=conf.download, transform=transform)
+    
+    return train, test
+
+
+# Get the cifar dataset and apply transformations
+def get_cifar10(conf):
+    transform_train = transforms.Compose([transforms.RandomCrop(32, padding=4),
+                                          transforms.RandomHorizontalFlip(),
+                                          transforms.ToTensor()])
+
+    transform_test = transforms.Compose([transforms.ToTensor()])
+    
+   # train and test set
+    train = datasets.CIFAR10(conf.data_file, train=True, download=conf.download, transform=transform_train)
+    test = datasets.CIFAR10(conf.data_file, train=False, download=conf.download, transform=transform_test)
+    
+    return train, test
+
+
+
+def train_valid_test_split(conf, train, test, test_batch_size=1000):
+    total_count = len(train)
+    train_count = int(conf.train_split * total_count)
+    val_count = total_count - train_count
+    if val_count > 0:
+        train, val = torch.utils.data.random_split(train, [train_count, val_count],generator=torch.Generator().manual_seed(42))
+        valid_loader = DataLoader(val, batch_size=128, shuffle=True, pin_memory=False)
+    else:
+        valid_loader = None
+
+    train_loader = DataLoader(train, batch_size=conf.batch_size, shuffle=True, pin_memory=conf.pin_memory, num_workers=conf.num_workers)
+    test_loader = DataLoader(test, batch_size=test_batch_size, shuffle=False, pin_memory=conf.pin_memory, num_workers=conf.num_workers)
+
+    return train_loader, valid_loader, test_loader
+
+
+# set imshape, mean and std for the dataset
+def data_set_info(data_set, device=None):
+    if data_set == "MNIST" or data_set == "Encoder-MNIST":
+        im_shape = [1,28,28]
+        data_set_mean = 0.1307
+        data_set_std = 0.3081
+    elif data_set == "Fashion-MNIST":
+        im_shape = [1,28,28]
+        data_set_mean = 0.5
+        data_set_std = 0.5
+    elif data_set == "CIFAR10":
+        im_shape = [3,32,32]
+        data_set_mean = torch.tensor([0.4914, 0.4822, 0.4465],device=device).view(-1,1,1)
+        data_set_std = torch.tensor([0.2023, 0.1994, 0.2010],device=device).view(-1,1,1)
+
+    else:
+        raise ValueError("Dataset:" + data_set + " not defined")
+        
+    return im_shape, data_set_mean, data_set_std
+    
+
+class AutoEncodeDataset(Dataset):
+    def __init__(self, dataset, transform_aug, transform_clean):
+        self.dataset = dataset
+        self.transform_aug = transform_aug
+        self.transform_clean = transform_clean
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        x, y = self.dataset.__getitem__(idx)
+
+        # ----------------------------
+        x_aug = self.transform_aug(x)
+        x = self.transform_clean(x)
+        return x_aug, x
+    
+def get_augmented_dataset(conf, dataset, transform):
+    X = torch.zeros(size=(len(dataset),*conf.im_shape))
+    Y = torch.zeros(size=(len(dataset),*conf.im_shape))
+    for i, (x,_) in enumerate(dataset):
+        X[i,::] = transform(x.view(1,*x.shape))[0,::]
+        Y[i,::] = x
+        
+    return torch.utils.data.TensorDataset(X, Y)
+    
+    
+
+class add_noise(object):
+    def __init__(self, mean=0., std=1., device = None):
+        self.std = std
+        self.mean = mean
+        self.device = device
+        
+    def __call__(self, tensor):
+        return tensor + torch.randn(tensor.size(),device=self.device) * self.std + self.mean
+    
+    def __repr__(self):
+        return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
+    
+    
+    
+    
+class GaussianSmoothing(torch.nn.Module):
+    """
+    Apply gaussian smoothing on a
+    1d, 2d or 3d tensor. Filtering is performed seperately for each channel
+    in the input using a depthwise convolution.
+    Arguments:
+        channels (int, sequence): Number of channels of the input tensors. Output will
+            have this number of channels as well.
+        kernel_size (int, sequence): Size of the gaussian kernel.
+        sigma (float, sequence): Standard deviation of the gaussian kernel.
+        dim (int, optional): The number of dimensions of the data.
+            Default value is 2 (spatial).
+    """
+    def __init__(self, channels, kernel_size, sigma, dim=2):
+        super(GaussianSmoothing, self).__init__()
+        
+        # padding
+        self.pad = int(0.5*(kernel_size-1)) 
+        
+        if isinstance(kernel_size, numbers.Number):
+            kernel_size = [kernel_size] * dim
+        if isinstance(sigma, numbers.Number):
+            sigma = [sigma] * dim
+          
+        # The gaussian kernel is the product of the
+        # gaussian function of each dimension.
+        kernel = 1
+        meshgrids = torch.meshgrid(
+            [
+                torch.arange(size, dtype=torch.float32)
+                for size in kernel_size
+            ]
+        )
+        for size, std, mgrid in zip(kernel_size, sigma, meshgrids):
+            mean = (size - 1) / 2
+            kernel *= 1 / (std * math.sqrt(2 * math.pi)) * \
+                      torch.exp(-((mgrid - mean) / std) ** 2 / 2)
+
+        # Make sure sum of values in gaussian kernel equals 1.
+        kernel = kernel / torch.sum(kernel)
+
+        # Reshape to depthwise convolutional weight
+        kernel = kernel.view(1, 1, *kernel.size())
+        kernel = kernel.repeat(channels, *[1] * (kernel.dim() - 1))
+
+        self.register_buffer('weight', kernel)
+        self.groups = channels
+        
+        
+
+        if dim == 1:
+            self.conv = F.conv1d
+        elif dim == 2:
+            self.conv = F.conv2d
+        elif dim == 3:
+            self.conv = F.conv3d
+        else:
+            raise RuntimeError(
+                'Only 1, 2 and 3 dimensions are supported. Received {}.'.format(dim)
+            )
+
+    def forward(self, input):
+        """
+        Apply gaussian filter to input.
+        Arguments:
+            input (torch.Tensor): Input to apply gaussian filter on.
+        Returns:
+            filtered (torch.Tensor): Filtered output.
+        """        
+        return self.conv(input, weight=self.weight, groups=self.groups,padding=self.pad)
+</file>
+
+<file path="models/aux_funs.py">
+import torch.nn as nn
+import torch.nn.functional as F
+import torch
+import math
+from itertools import cycle
+  
+    
+def init_weight_bias_normal(m):
+    if type(m) == nn.Linear:
+        m.weight.data = torch.randn_like(m.weight.data)
+        m.bias.data = torch.randn_like(m.bias.data)
+        
+        
+        
+def sparsify_(model, sparsity, ltype = nn.Linear, conv_group=True, row_group = False):       
+    for m in model.modules():
+        if not isinstance(m, ltype):
+            continue
+            
+        elif (isinstance(m, nn.Linear) and not row_group) or (isinstance(m, nn.Conv2d) and not conv_group):
+            s_loc = sparsity
+            mask = torch.bernoulli(s_loc*torch.ones_like(m.weight))
+            m.weight.data.mul_(mask)
+            
+        elif isinstance(m, nn.Linear): # row sparsity
+            s_loc = sparsity
+            w = m.weight.data
+            mask = torch.bernoulli(s_loc*torch.ones(size=(w.shape[0],1),device=w.device))
+            #
+            m.weight.data.mul_(mask)
+            
+        elif isinstance(m, nn.Conv2d): # kernel sparsity
+            s_loc = sparsity
+            w = m.weight.data
+            n = w.shape[0]*w.shape[1]
+            
+            # assign mask
+            mask = torch.zeros(n,1,device=w.device)
+            idx = torch.randint(low=0,high=n,size=(math.ceil(n*s_loc),))
+            mask[idx] = 1
+            
+            # multiply with mask
+            c = w.view(w.shape[0]*w.shape[1],-1)
+            m.weight.data = mask.mul(c).view(w.shape)
+            
+        
+# def sparsify_(model, sparsity):
+#     if isinstance(sparsity, list):
+#         s_iter = cycle(sparsity)
+#     else:
+#         s_iter = cycle([sparsity])
+        
+#     for m in model.modules():
+#         if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Conv2d):
+#             s_loc = next(s_iter)
+#             # number of zeros
+#             n = int(s_loc*m.weight.numel())
+#             # initzialize mask
+#             mask = torch.zeros_like(m.weight)
+#             row_idx = torch.randint(low=0,high=mask.shape[0],size=(n,))
+#             col_idx = torch.randint(low=0,high=mask.shape[1],size=(n,))
+#             # fill with ones at random indices
+#             mask[row_idx, col_idx] = 1.
+#             m.weight.data.mul_(mask)
+
+def sparse_bias_uniform_(model,r0,r1,ltype = nn.Linear):
+    for m in model.modules():
+        if isinstance(m,ltype):
+            if hasattr(m, 'bias') and not (m.bias is None):
+                fan_in, _ = nn.init._calculate_fan_in_and_fan_out(m.weight)
+                bound0 = r0 / math.sqrt(fan_in)
+                bound1 = r1/math.sqrt(fan_in)
+                nn.init.uniform_(m.bias, -bound0, bound1)
+                
+def bias_constant_(model,r):
+    for m in model.modules():
+        if isinstance(m, torch.nn.Linear):
+            if type(m) == nn.Linear:
+                nn.init.constant_(m.bias, r)           
+                
+def sparse_weight_normal_(model,r,ltype = nn.Linear):
+    for m in model.modules():
+        if isinstance(m,ltype):
+            nn.init.kaiming_normal_(m.weight)
+            m.weight.data.mul_(r)
+                
+
+def sparse_weight_uniform_(model,r):
+    for m in model.modules():
+        if isinstance(m, torch.nn.Linear):
+            #nn.init.kaiming_uniform_(m.weight, a=r*math.sqrt(5))
+            fan = nn.init._calculate_correct_fan(m.weight, 'fan_in')
+            std = r / math.sqrt(fan)
+            bound = math.sqrt(3.0) * std  # Calculate uniform bounds from standard deviation
+            
+            with torch.no_grad():
+                m.weight.uniform_(-bound, bound)
+    
+    
+
+def sparse_he_(model, r):
+    for m in model.modules():
+        if isinstance(m, torch.nn.Linear):
+            if type(m) == nn.Linear:
+                w_std = r*math.sqrt(2/(m.weight.data.shape[1]))
+                b_std = r*math.sqrt(2/(m.weight.data.shape[1]))
+
+                m.weight.data = torch.normal(0, w_std, size = m.weight.data.shape)
+                m.bias.data = b_std *torch.rand(size=m.bias.data.shape)
+
+
+
+
+# def he_sparse_(tensor, sparsity):
+#     rows, cols = tensor.shape
+#     num_zeros = int(sparsity * rows)
+
+#     with torch.no_grad():
+#         tensor.normal_(0, cols*(1-sparsity))
+#         for col_idx in range(cols):
+#             row_indices = torch.randperm(rows)
+#             zero_indices = row_indices[:num_zeros]
+#             tensor[zero_indices, col_idx] = 0
+#     return tensor
+
+
+def print_sparsity(M,print_all=True):
+    s =""
+    s_list =[]
+    n=""
+    n_list=[]
+    sp=0
+    numel=0
+    for m in M:
+        if isinstance(m, torch.nn.Linear):
+            a = m.weight
+            numel_loc = a.data.numel()
+            numel += numel_loc
+            
+            sp_loc = torch.count_nonzero(a.data).item()
+            sp += sp_loc
+            s += str(sp_loc/numel_loc) + " "
+            s_list.append(sp_loc/numel_loc)
+            n += str(torch.count_nonzero(torch.sum(torch.abs(a.data),axis=1)).item()) + "/" + str(a.data.shape[0]) + " "
+            n_list.append(torch.count_nonzero(torch.sum(torch.abs(a.data),axis=1)).item()/a.data.shape[0])
+        elif isinstance(m, torch.nn.Conv2d):
+            a = m.weight
+            numel_loc = a.data.numel()
+            numel += numel_loc
+            
+            sp_loc = torch.count_nonzero(a.data).item()
+            sp += sp_loc
+            s += str(sp_loc/numel_loc) + " "
+    
+            
+    print(50*'-')
+    if print_all:
+        print('Weight Sparsity:', s)
+        print('Active Nodes:', n)
+    print('Total percentage of used weights:',(sp/numel))
+    
+    return s_list, n_list, sp/numel
+
+def net_sparsity(model):
+    numel = 0
+    nnz = 0
+    #
+    for m in model.modules():
+        if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Conv2d):
+            a = m.weight
+            numel_loc = a.data.numel()
+            numel += numel_loc
+            nnz += torch.count_nonzero(a.data).item()
+    #
+    return nnz/numel
+
+def node_sparsity(model):
+    ret = []
+    #
+    for m in model.modules():
+        if isinstance(m, torch.nn.Linear):
+            a = m.weight
+            
+            nnz = torch.count_nonzero(torch.norm(a.data,p=2,dim=1)).item()
+            numel_loc = a.shape[0]
+            ret.append(nnz/numel_loc)
+    #
+    return ret
+
+def linear_sparsity(model):
+    numel = 0
+    nnz = 0
+    #
+    for m in model.modules():
+        if isinstance(m, torch.nn.Linear):
+            a = m.weight
+            numel_loc = a.data.numel()
+            numel += numel_loc
+            nnz += torch.count_nonzero(a.data).item()
+    #
+    return nnz/numel
+    
+
+def conv_sparsity(model):
+    nnz = 0
+    total = 0
+    for m in model.modules():
+        if isinstance(m, torch.nn.Conv2d):
+            s = m.weight.shape
+            w = m.weight.view(s[0]*s[1], s[2]*s[3])
+            nnz += torch.count_nonzero(torch.norm(w,p=1,dim=1)>0).item()
+            total += s[0] * s[1]
+    #
+    if total == 0:
+        return 0
+    else:
+        return nnz/total
+
+def conv_effective_rank(model, epsilon=1e-3): # consider using fractional energy or stable rank
+    """
+    Computes the average effective rank of all Conv2d layers.
+    The effective rank of a single layer is the count of singular values > epsilon.
+    """
+    total_rank = 0
+    total_layers = 0
+
+    for m in model.modules():
+        if isinstance(m, torch.nn.Conv2d):
+            w = m.weight
+            # Flatten each filter to one row: (out_channels, in_channels*kernel_height*kernel_width)
+            mat = w.view(w.shape[0], -1)
+
+            # SVD on the flattened matrix
+            U, S, V = torch.svd(mat, some=True)
+
+            # Count how many singular values exceed epsilon
+            rank_layer = (S > epsilon).sum().item()
+            total_rank += rank_layer
+            total_layers += 1
+
+    if total_layers == 0:
+        return 0.0
+    else:
+        return total_rank / total_layers
+
+def conv_effective_rank_ratio(model, epsilon=1e-6):
+    """
+    Computes the average ratio of effective rank to the maximum rank
+    across all convolutional layers in the model. The effective rank
+    is the count of singular values above epsilon. The maximum rank
+    for a flattened weight matrix (m, n) is min(m, n).
+    """
+    total_ratio = 0.0
+    total_layers = 0
+
+    for m in model.modules():
+        if isinstance(m, torch.nn.Conv2d):
+            w = m.weight
+            # Flatten shape: (m, n) = (out_ch * in_ch, kernel_height * kernel_width)
+            m_dim = w.size(0) * w.size(1)  # out_ch*in_ch
+            n_dim = w.size(2) * w.size(3)  # kH*kW
+            max_rank = min(m_dim, n_dim)
+
+            mat = w.view(m_dim, n_dim)
+            U, S, V = torch.svd(mat, some=True)  # economy SVD
+            effective_rank = (S > epsilon).sum().item()
+
+            # Ratio of effective rank to max rank
+            layer_ratio = effective_rank / max_rank
+            total_ratio += layer_ratio
+            total_layers += 1
+
+    if total_layers == 0:
+        return 0.0
+    else:
+        return total_ratio / total_layers
+    
+
+
+def linear_effective_rank_ratio(model, epsilon=1e-6):
+    """
+    Computes the proportion of singular values above threshold epsilon
+    for each fully connected layer, then averages these proportions.
+    """
+    layer_ratios = []
+
+    for m in model.modules():
+        if isinstance(m, torch.nn.Linear):
+            w = m.weight
+            U, S, V = torch.svd(w, some=True)
+            
+            # Proportion of singular values above threshold
+            ratio = (S > epsilon).sum().item() / len(S)
+            layer_ratios.append(ratio)
+            
+    if not layer_ratios:
+        return 0.0
+    else:
+        return sum(layer_ratios) / len(layer_ratios)
+
+def get_linear_layer_ranks(model, epsilon=1e-6):
+    """
+    Returns the effective rank ratio for each individual fully connected layer.
+    """
+    layer_ranks = {}
+    
+    for name, m in model.named_modules():
+        if isinstance(m, torch.nn.Linear):
+            w = m.weight
+            U, S, V = torch.svd(w, some=True)
+            
+            # Proportion of singular values above threshold
+            ratio = (S > epsilon).sum().item() / len(S)
+            layer_ranks[name] = ratio
+            
+    return layer_ranks
+
+def get_weights(model):
+    for m in model.modules():
+        if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Conv2d):
+            yield m.weight
+        else:
+            continue
+            
+def get_weights_conv(model):
+    for m in model.modules():
+        if isinstance(m, torch.nn.Conv2d):
+            yield m.weight
+        else:
+            continue
+            
+def get_weights_linear(model):
+    for m in model.modules():
+        if isinstance(m, torch.nn.Linear):
+            yield m.weight
+        else:
+            continue
+            
+def get_weights_batch(model):
+    for m in model.modules():
+        if isinstance(m, torch.nn.BatchNorm2d):
+            yield m.weight
+        else:
+            continue
+            
+def get_bias(model):
+    for m in model.modules():
+        if isinstance(m, torch.nn.Linear) or isinstance(m, torch.nn.Conv2d) or isinstance(m, torch.nn.BatchNorm2d):
+            if not (m.bias is None):
+                yield m.bias
+        else:
+            continue
+</file>
+
+<file path="utils/configuration.py">
+import torch
+import torch.nn.functional as F
+from torchvision import transforms
+import math
+import random
+from itertools import cycle
+
+# custom imports
+from models.resnet import ResNet18
+from models.mnist_conv import mnist_conv
+from models.fully_connected import fully_connected
+import models.aux_funs as maf
+import regularizers as reg
+from utils.datasets import data_set_info, add_noise
+import train
+import optimizers as op
+
+# -----
+import os.path
+import csv
+
+# numpy
+import numpy as np
+
+
+class Conf:
+    def __init__(self, **kwargs):
+        # ----------------------------------------
+        # set defaults
+        # ----------------------------------------
+        # cuda
+        self.use_cuda = False
+        self.num_workers = 0
+        self.cuda_device = 0
+        
+        # dataset
+        self.data_set = "MNIST"
+        self.data_file = ""
+        self.train_split = 1.0
+        self.download = False
+        
+        # loss function
+        self.loss = F.cross_entropy
+        
+        # misc
+        self.eval_acc = True
+ 
+        # specification for Training
+        self.epochs = 100
+        self.batch_size = 128
+        self.lr = 0.1
+        self.sparse_init = 1.0
+        
+        # ----------------------------------------
+        # set all kwargs
+        # ----------------------------------------
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+        # ----------------------------------------
+        
+        # Set device
+        self.device = torch.device("cuda"+":"+str(self.cuda_device) if self.use_cuda else "cpu")
+        
+        # additonal dataset info
+        im_shape, mean, std = data_set_info(self.data_set,self.device)
+        self.im_shape = im_shape
+        self.data_set_mean = mean
+        self.data_set_std = std
+        self.x_min = 0.0
+        self.x_max = 1.0
+
+    def write_to_csv(self):
+        idx = 0
+        log_file = 'ex_results/'+self.super_type+'/'+self.name+'_'+str(idx)+'.csv'
+        while os.path.isfile(log_file):
+            idx += 1
+            log_file = 'ex_results/'+self.super_type+'/'+self.name+'_'+str(idx)+'.csv'
+    
+        self.ID = idx
+    
+        with open(log_file, mode='w') as res_file:
+            res_writer = csv.writer(res_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            v_conf = vars(self)
+
+            key_loc = list(v_conf.keys())
+            res_writer.writerow(key_loc)
+
+            values = []
+            for key in key_loc:
+                values.append(str(v_conf[key]))
+            res_writer.writerow(values)
+        
+class run:
+    def __init__(self,params):
+        self.iter = 0
+        self.params = []
+        for i in range(len(params)):
+            p = params[i]
+            reps = p.get('reps',1)
+
+            for j in range(reps):
+                # new dictionary to use for local parameters
+                p_loc = p.copy()
+                p_loc['random_seed'] = p.get('random_seed',0) + j
+                
+                self.params.append(p_loc)
+                
+        self.num_runs = len(self.params)
+        # ----------------------------------------        
+        # history
+        self.history = []
+        
+    def step(self,conf=None):
+        if self.iter < self.num_runs:
+            if not (conf is None):
+                for key in self.params[self.iter]:
+                    setattr(conf, key,self.params[self.iter][key])
+            # ----------------------------------------
+            self.history.append({})
+            self.iter += 1
+            return True
+        else:
+            return False
+        
+    def add_history(self, hist, name):
+        for key in hist:
+            loc_key = name + "_"+ key
+            
+            # add to history   
+            self.history[self.iter-1][loc_key] = hist[key]
+             
+            
+# -----------------------------------------------------------------------------------
+# fix a specific seed
+# -----------------------------------------------------------------------------------
+def seed_torch(seed=0):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed) # if you are using multi-GPU.
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+
+# -----------------------------------------------------------------------------------
+# MNIST_AUTOENCODER
+# -----------------------------------------------------------------------------------
+def mnist_autoencoder_example(data_file, use_cuda=False, num_workers=None, 
+                  mu=0.0, sparse_init=1.0, r = [5,10], lr=0.1, optim = "SGD", beta = 0.0, delta = 1.0):
+    if use_cuda and num_workers is None:
+        num_workers = 4
+    else:
+        num_workers = 0
+        
+    
+    conf_args = {'data_set': "Encoder-MNIST", 'data_file':data_file, 
+                 'use_cuda':use_cuda, 'train_split':0.95, 'num_workers':num_workers, 'epochs':100, 
+                 'sparse_init':sparse_init, 'eval_acc':False}
+    
+    # get configuration
+    conf = Conf(**conf_args)
+    
+#     def reshaped_mse_loss(x,y):
+#         kernel_size = 5
+#         sigma=(0.1, 2.0)
+#         x_aug = add_noise(std=0.2,device=conf.device)(x)
+#         return torch.nn.MSELoss()(x_aug,x.view(-1,28*28))
+
+    def reshaped_mse_loss(x,y):
+            return torch.nn.MSELoss()(x,y.view(-1,28*28))
+
+    conf.loss = reshaped_mse_loss
+
+    
+    # -----------------------------------------------------------------------------------
+    # define the model and an instance of the best model class
+    # -----------------------------------------------------------------------------------
+    sizes = 7*[784]
+    #act_fun = torch.nn.Sigmoid()
+    act_fun = torch.nn.ReLU()
+    #act_fun = torch.nn.Softplus(beta=1, threshold=20)
+    #act_fun = torch.nn.LeakyReLU(0.2)
+    
+    model = fully_connected(sizes, act_fun, mean = conf.data_set_mean, std = conf.data_set_std)
+    best_model = train.best_model(fully_connected(sizes, act_fun, mean = conf.data_set_mean, 
+                                                  std =conf.data_set_std).to(conf.device), goal_acc = conf.goal_acc)
+    
+    # sparsify
+    #maf.sparse_he_(model, 5.0)
+    maf.sparse_bias_uniform_(model, 0,r[0])
+    #maf.bias_constant_(model,r[0])
+    
+    maf.sparse_weight_normal_(model, r[1])
+    maf.sparsify_(model, conf.sparse_init, row_group = True)
+    model = model.to(conf.device)
+    
+    # -----------------------------------------------------------------------------------
+    # Get access to different model parameters
+    # -----------------------------------------------------------------------------------
+    weights_linear = maf.get_weights_linear(model)
+    biases = maf.get_bias(model)
+    
+    # -----------------------------------------------------------------------------------
+    # Initialize optimizer
+    # -----------------------------------------------------------------------------------
+    reg1 = reg.reg_l1_l2(mu=mu)
+    #reg1 =  reg.reg_l1(mu=mu)
+    
+    if optim == "SGD":
+        opt = torch.optim.SGD(model.parameters(), lr=lr, momentum=beta)
+    elif optim == "LinBreg":
+        opt = op.LinBreg([{'params': weights_linear, 'lr' : lr, 'reg' : reg1, 'momentum':beta, 'delta':delta},
+                          {'params': biases, 'lr': lr, 'momentum':beta}])
+    elif optim == "AdaBreg":
+        opt = op.AdamBreg([{'params': weights_linear, 'lr' : lr, 'reg' : reg1},
+                           {'params': biases, 'lr': lr}])
+    elif optim == "ProxSGD":
+        opt = op.ProxSGD([{'params': weights_linear, 'lr' : lr, 'reg' : reg1, 'momentum':beta,'delta':delta},
+                          {'params': biases, 'lr': lr, 'momentum':beta}])  
+    elif optim == "L1SGD":
+        def weight_reg(model):         
+            loss1 = 0
+            for w in maf.get_weights_linear(model):
+                loss1 += reg1(w)
+                
+            return loss1
+        
+        conf.weight_reg = weight_reg
+        
+        opt = torch.optim.SGD(model.parameters(), lr=lr, momentum=beta)
+    
+    return conf, model, best_model, opt
+</file>
+
+<file path="optimizers.py">
+import torch
+import math
+import regularizers as reg
+
+class LinBreg(torch.optim.Optimizer):
+    def __init__(self,params,lr=1e-3,reg=reg.reg_none(), delta=1.0, momentum=0.0):
+        if lr < 0.0:
+            raise ValueError("Invalid learning rate")
+            
+        defaults = dict(lr=lr, reg=reg, delta=delta, momentum=momentum)
+        super(LinBreg, self).__init__(params, defaults)
+        
+    @torch.no_grad()
+    def step(self, closure=None):
+        for group in self.param_groups:
+            delta = group['delta']
+            # define regularizer for this group
+            reg = group['reg'] 
+            step_size = group['lr']
+            momentum = group['momentum']
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                # get grad and state
+                grad = p.grad.data
+                state = self.state[p]
+                if len(state) == 0:
+                    state['step'] = 0
+                    # get prox
+                    # initialize subgradients
+                    state['sub_grad'] = self.initialize_sub_grad(p,reg, delta)
+                    state['momentum_buffer'] = None
+                # -------------------------------------------------------------
+                # update scheme
+                # -------------------------------------------------------------
+                # get the current sub gradient
+                sub_grad = state['sub_grad']
+                # update on the subgradient
+                if momentum > 0.0: # with momentum
+                    mom_buff = state['momentum_buffer']
+                    if state['momentum_buffer'] is None:
+                        mom_buff = torch.zeros_like(grad)
+ 
+                    mom_buff.mul_(momentum)
+                    mom_buff.add_((1-momentum)*step_size*grad) 
+                    state['momentum_buffer'] = mom_buff
+                    #update subgrad
+                    sub_grad.add_(-mom_buff)
+                                                            
+                else: # no momentum
+                    sub_grad.add_(-step_size * grad)
+                # update step for parameters
+                p.data = reg.prox(delta * sub_grad, delta)
+        
+    def initialize_sub_grad(self,p, reg, delta):
+        p_init = p.data.clone()
+        return 1/delta * p_init + reg.sub_grad(p_init)
+    
+    @torch.no_grad()
+    def evaluate_reg(self):
+        reg_vals = []
+        for group in self.param_groups:
+            group_reg_val = 0.0
+            delta = group['delta']
+            
+            # define regularizer for this group
+            reg = group['reg']
+            
+            # evaluate the reguarizer for each parametr in group
+            for p in group['params']:
+                group_reg_val += reg(p)
+                
+            # append the group reg val
+            reg_vals.append(group_reg_val)
+            
+        return reg_vals
+                
+        
+    
+# ------------------------------------------------------------------------------------------------------    
+class ProxSGD(torch.optim.Optimizer):
+    def __init__(self,params,lr=1e-3,reg=reg.reg_none()):
+        if lr < 0.0:
+            raise ValueError("Invalid learning rate")
+            
+        defaults = dict(lr=lr, reg=reg)
+        super(ProxSGD, self).__init__(params, defaults)
+        
+    @torch.no_grad()
+    def step(self, closure=None):
+        for group in self.param_groups:
+            # define regularizer for this group
+            reg = group['reg'] 
+            step_size = group['lr']
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                # get grad and state
+                grad = p.grad.data
+                state = self.state[p]
+                if len(state) == 0:
+                    state['step'] = 0
+                    
+                # -------------------------------------------------------------
+                # update scheme
+                # -------------------------------------------------------------               
+                # gradient steps
+                p.data.add_(-step_size * grad)
+                # proximal step
+                p.data = reg.prox(p.data, step_size)
+                
+    @torch.no_grad()
+    def evaluate_reg(self):
+        reg_vals = []
+        for group in self.param_groups:
+            group_reg_val = 0.0
+            # define regularizer for this group
+            reg = group['reg']
+            
+            # evaluate the reguarizer for each parametr in group
+            for p in group['params']:
+                group_reg_val += reg(p)
+                
+            # append the group reg val
+            reg_vals.append(group_reg_val)
+            
+        return reg_vals
+                   
+# ------------------------------------------------------------------------------------------------------           
+class AdaBreg(torch.optim.Optimizer):
+    def __init__(self,params,lr=1e-3,reg=reg.reg_none(), delta=1.0, betas=(0.9, 0.999), eps=1e-8):
+        if lr < 0.0:
+            raise ValueError("Invalid learning rate")
+            
+        defaults = dict(lr=lr, reg=reg, delta=delta, betas=betas, eps=eps)
+        super(AdaBreg, self).__init__(params, defaults)
+        
+    @torch.no_grad()
+    def step(self, closure=None):
+        for group in self.param_groups:
+            delta = group['delta']
+            # get regularizer for this group
+            reg = group['reg']
+            # get parameters for adam
+            lr = group['lr']
+            beta1, beta2 = group['betas']
+            eps = group['eps']
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                # get grad and state
+                grad = p.grad.data
+                state = self.state[p]
+                if len(state) == 0:
+                    state['step'] = 0
+                    # get prox
+                    # initialize subgradients
+                    state['sub_grad'] = self.initialize_sub_grad(p,reg, delta)
+                    state['exp_avg'] = torch.zeros_like(state['sub_grad'])
+                    state['exp_avg_sq'] = torch.zeros_like(state['sub_grad'])
+                # -------------------------------------------------------------
+                # update scheme
+                # -------------------------------------------------------------
+                # update step
+                state['step'] += 1
+                step = state['step']
+                # get the current sub gradient and averages
+                sub_grad = state['sub_grad']
+                exp_avg = state['exp_avg']
+                exp_avg_sq = state['exp_avg_sq']
+                
+                # define bias correction factors
+                bias_correction1 = 1 - beta1 ** step
+                bias_correction2 = 1 - beta2 ** step
+
+                # Decay the first and second moment running average coefficient
+                exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
+                exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+
+                # denominator in the fraction
+                denom = (exp_avg_sq.sqrt() / math.sqrt(bias_correction2)).add_(eps)
+                
+                # step size in adam update
+                step_size = lr / bias_correction1
+                
+                # update subgrad
+                sub_grad.addcdiv_(exp_avg, denom, value=-step_size)
+                
+                # update step for parameters
+                p.data = reg.prox(delta * sub_grad, delta)
+        
+    def initialize_sub_grad(self,p, reg, delta):
+        p_init = p.data.clone()
+        return 1/delta * p_init + reg.sub_grad(p_init)
+    
+    @torch.no_grad()
+    def evaluate_reg(self):
+        reg_vals = []
+        for group in self.param_groups:
+            group_reg_val = 0.0
+            delta = group['delta']
+            
+            # define regularizer for this group
+            reg = group['reg']
+            
+            # evaluate the reguarizer for each parametr in group
+            for p in group['params']:
+                group_reg_val += reg(p)
+                
+            # append the group reg val
+            reg_vals.append(group_reg_val)
+            
+        return reg_vals
+    
+    
+class lamda_scheduler:
+    '''scheduler for the regularization parameter'''
+    def __init__(self, opt,idx, warmup = 0, increment = 0.05, cooldown=0, target_sparse=1.0, reg_param ="mu"):
+        self.opt = opt
+        self.group = opt.param_groups[idx]
+        
+        # warm up
+        self.warmup = warmup
+        
+        # increment
+        self.increment = increment
+        
+        # cooldown
+        self.cooldown_val = cooldown
+        self.cooldown = cooldown
+        
+        # target
+        self.target_sparse = target_sparse
+        self.reg_param = reg_param
+         
+    def __call__(self, sparse, verbosity = 1):
+        # check if we are still in the warm up phase
+        if self.warmup > 0:
+            self.warmup -= 1
+        elif self.warmup == 0:
+            self.warmup = -1
+        else:
+            # cooldown 
+            if self.cooldown_val > 0:
+                self.cooldown_val -= 1 
+            else: # cooldown is over, time to update and reset cooldown
+                self.cooldown_val = self.cooldown
+
+                # discrepancy principle for lamda
+                if sparse > self.target_sparse:
+                    self.group['reg'].mu += self.increment
+                else:
+                    self.group['reg'].mu = max(self.group['reg'].mu - self.increment,0.0)
+                
+                # reset subgradients
+                for p in self.group['params']:   
+                    state = self.opt.state[p]
+                    state['sub_grad'] = self.opt.initialize_sub_grad(p, self.group['reg'],  self.group['delta'])
+                    
+        if verbosity > 0:
+            print('Lamda was set to:', self.group['reg'].mu, ', cooldown on:',self.cooldown_val)
+
+
+class LinBregHeavyBall(torch.optim.Optimizer):
+    def __init__(self, params, lr=1e-3, reg=reg.reg_none(), delta=1.0, momentum=0.0):
+        if lr < 0.0:
+            raise ValueError("Invalid learning rate")
+        defaults = dict(lr=lr, reg=reg, delta=delta, momentum=momentum)
+        super(LinBregHeavyBall, self).__init__(params, defaults)
+    
+    @torch.no_grad()
+    def step(self, closure=None):
+        for group in self.param_groups:
+            delta = group['delta']
+            reg = group['reg']
+            step_size = group['lr']
+            momentum = group['momentum']
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                grad = p.grad.data
+                state = self.state[p]
+                if len(state) == 0:
+                    state['step'] = 0
+                    state['sub_grad'] = self.initialize_sub_grad(p, reg, delta)
+                    state['momentum_buffer'] = None
+                # update scheme
+                sub_grad = state['sub_grad']
+                if momentum > 0.0: # with heavy ball momentum
+                    mom_buff = state['momentum_buffer']
+                    if mom_buff is None:
+                        mom_buff = torch.zeros_like(grad)
+                    # heavy ball momentum update: v = momentum*v + step_size*grad
+                    mom_buff.mul_(momentum)
+                    mom_buff.add_(step_size * grad)
+                    state['momentum_buffer'] = mom_buff
+                    # update subgradient with the momentum buffer
+                    sub_grad.add_(-mom_buff)
+                else: # without momentum
+                    sub_grad.add_(-step_size * grad)
+                p.data = reg.prox(delta * sub_grad, delta)
+    
+    def initialize_sub_grad(self, p, reg, delta):
+        p_init = p.data.clone()
+        return 1 / delta * p_init + reg.sub_grad(p_init)
+    
+    @torch.no_grad()
+    def evaluate_reg(self):
+        reg_vals = []
+        for group in self.param_groups:
+            group_reg_val = 0.0
+            delta = group['delta']
+            reg = group['reg']
+            for p in group['params']:
+                group_reg_val += reg(p)
+            reg_vals.append(group_reg_val)
+        return reg_vals
+
+
+class NuclearLinBreg(LinBreg):
+    """Modified LinBreg that correctly handles nuclear norm regularization"""
+    
+    @torch.no_grad()
+    def step(self, closure=None):
+        for group in self.param_groups:
+            delta = group['delta']
+            reg_instance = group['reg'] 
+            step_size = group['lr']
+            momentum = group['momentum']
+            
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                
+                grad = p.grad.data
+                state = self.state[p]
+                
+                if len(state) == 0:
+                    state['step'] = 0
+                    state['sub_grad'] = self.initialize_sub_grad(p, reg_instance, delta)
+                    state['momentum_buffer'] = None
+                
+                if (
+                    isinstance(reg_instance, reg.reg_nuclear_linear)
+                    or isinstance(reg_instance, reg.reg_nuclear_conv)
+                    or isinstance(reg_instance, reg.reg_nuclear_linear_truncated)
+                    or isinstance(reg_instance, reg.reg_nuclear_conv_truncated)
+                ):
+                    # For nuclear norm, use direct proximal gradient approach (like ProxSGD)
+                    p.data.add_(-step_size * grad)
+                    p.data = reg_instance.prox(p.data, step_size)
+                else:
+                    # For other regularizers, use standard LinBreg approach
+                    sub_grad = state['sub_grad']
+                    
+                    if momentum > 0.0:
+                        mom_buff = state['momentum_buffer']
+                        if mom_buff is None:
+                            mom_buff = torch.zeros_like(grad)
+                        
+                        mom_buff.mul_(momentum)
+                        mom_buff.add_((1-momentum)*step_size*grad)
+                        state['momentum_buffer'] = mom_buff
+                        sub_grad.add_(-mom_buff)
+                    else:
+                        sub_grad.add_(-step_size * grad)
+                    
+                    p.data = reg_instance.prox(delta * sub_grad, delta)
+</file>
+
+<file path="requirements.txt">
+torch
+torchvision
+numpy
+matplotlib
+</file>
+
+<file path="regularizers.py">
+import torch
+import math
+
+class reg_none:
+    def __call__(self, x):
+        return 0
+    
+    def prox(self, x, delta=1.0):
+        return x
+    
+    def sub_grad(self, v):
+        return torch.zeros_like(v)
+    
+class reg_l1:
+    def __init__(self, lamda=1.0):
+        self.lamda = lamda
+        
+    def __call__(self, x):
+        return self.lamda * torch.norm(x, p=1).item()
+        
+    def prox(self, x, delta=1.0):
+        return torch.sign(x) * torch.clamp(torch.abs(x) - (delta * self.lamda),min=0)
+        
+    def sub_grad(self, v):
+        return self.lamda * torch.sign(v)
+    
+
+class reg_l1_pos:
+    def __init__(self, lamda=1.0):
+        self.lamda = lamda
+        
+    def __call__(self, x):
+        return self.lamda * torch.norm(x, p=1).item()
+        
+    def prox(self, x, delta=1.0):
+        return torch.clamp(torch.sign(x) * torch.clamp(torch.abs(x) - (delta * self.lamda),min=0),min=0)
+        
+    def sub_grad(self, v):
+        return self.lamda * torch.sign(v)
+    
+    
+    
+class reg_l1_l2:
+    def __init__(self, lamda=1.0):
+        self.lamda = lamda
+        
+    #ToDo: incorporate lamda in call
+    def __call__(self, x):
+        return self.lamda * math.sqrt(x.shape[-1]) * torch.norm(torch.norm(x,p=2,dim=1), p=1).item()
+        
+    def prox(self, x, delta=1.0):
+        thresh = delta*self.lamda
+        thresh *= math.sqrt(x.shape[-1])
+        
+        ret = torch.clone(x)
+        nx = torch.norm(x,p=2,dim=1).view(x.shape[0],1)       
+        
+        ind = torch.where((nx!=0))[0]
+        
+        ret[ind] = x[ind] * torch.clamp(1 - torch.clamp(thresh/nx[ind], max=1), min=0)
+        return ret
+    
+        
+    def sub_grad(self, x):
+        thresh = self.lamda * math.sqrt(x.shape[-1])
+        #
+        nx = torch.norm(x,p=2,dim=1).view(x.shape[0],1)      
+        ind = torch.where((nx!=0))[0]
+        ret = torch.clone(x)
+        ret[ind] = x[ind]/nx[ind]
+        return thresh * ret
+    
+# subclass for convolutional kernels
+class reg_l1_l2_conv(reg_l1_l2):
+    def __init__(self, lamda=1.0):
+        super().__init__(lamda = lamda)
+        
+    def __call__(self, x):
+        return super().__call__(x.view(x.shape[0]*x.shape[1],-1))
+    
+    def prox(self, x, delta=1.0):
+        ret = super().prox(x.view(x.shape[0]*x.shape[1],-1), delta)
+        return ret.view(x.shape)
+    
+    def sub_grad(self, x):
+        ret = super().sub_grad(x.view(x.shape[0]*x.shape[1],-1))
+        return ret.view(x.shape) 
+                
+
+        
+class reg_l1_l1_l2:        
+    def __init__(self, lamda=1.0):
+        self.lamda = lamda
+        #TODO Add suitable normalization based on layer size
+        self.l1 = reg_l1(lamda=self.lamda)
+        self.l1_l2 = reg_l1_l2(lamda=self.lamda)
+        
+    def __call__(self, x):
+        return 0
+        
+    def prox(self, x, delta=1.0):
+        thresh = delta * self.lamda
+                
+        return self.l1_l2.prox(self.l1.prox(x,thresh), thresh)
+    
+    def sub_grad(self, x):
+        return self.lamda * (self.l1.sub_grad(x) + self.l1_l2.sub_grad(x))
+    
+class reg_soft_bernoulli:
+    def __init__(self,lamda=1.0):
+        self.lamda = lamda
+        
+    def prox(self, x, delta=1.0):
+        return torch.sign(x) * torch.max(torch.clamp(torch.abs(x) - (delta * self.lamda),min=0),torch.bernoulli(0.01*torch.ones_like(x)))
+    
+    def sub_grad(self, v):
+        return self.lamda * torch.sign(v)
+    
+
+class reg_nuclear_conv:
+    """
+    Applies a nuclear norm penalty to convolution weights.
+    This flattens conv weights into a 2D matrix, applies SVD,
+    and performs singular-value soft-thresholding.
+    """
+    def __init__(self, lamda=1.0):
+        self.lamda = lamda
+
+    def __call__(self, x):
+        # Flatten to shape [m, n] = [out_ch*in_ch, kernel_h*kernel_w]
+        mat = x.view(x.shape[0]*x.shape[1], -1)
+        # Use economy SVD so shapes match
+        U, S, V = torch.svd(mat, some=True)
+        return self.lamda * torch.sum(S)
+
+    def prox(self, x, delta=1.0):
+        # Flatten
+        mat = x.view(x.shape[0]*x.shape[1], -1)
+        U, S, V = torch.svd(mat, some=True)
+        Vh = V.t()
+
+        # Soft-threshold the singular values
+        S_thresh = torch.clamp(S - self.lamda * delta, min=0.0)
+        
+        # Multiply each column of U by the corresponding singular value
+        X_thresh = (U * S_thresh.unsqueeze(0)) @ Vh
+        
+        # Reshape back
+        return X_thresh.view(*x.shape)
+
+    def sub_grad(self, x):
+        # Subgradient is U @ Vᵀ
+        mat = x.view(x.shape[0]*x.shape[1], -1)
+        U, S, V = torch.svd(mat, some=True)
+        Vh = V.t()
+        
+        grad = U @ Vh
+        return self.lamda * grad.view(*x.shape)
+
+class reg_nuclear_linear:
+    def __init__(self, lamda=1.0):
+        self.lamda = lamda
+
+    def __call__(self, x):
+        # x is [out_features, in_features]
+        U, S, V = torch.svd(x, some=True)
+        return self.lamda * torch.sum(S)
+
+    def prox(self, x, delta=1.0):
+        U, S, V = torch.svd(x, some=True)
+        S_thresh = torch.clamp(S - self.lamda * delta, min=0.0)
+        return (U * S_thresh.unsqueeze(0)) @ V.t()
+
+    def sub_grad(self, x):
+        U, S, V = torch.svd(x, some=True)
+        return self.lamda * (U @ V.t())
+
+class reg_nuclear_linear_truncated:
+    def __init__(self, lamda=1.0, rank=None, niter=2):
+        self.lamda = lamda
+        self.rank = rank  # Number of singular values/vectors to compute
+        self.niter = niter  # Power iterations for accuracy
+
+    def _svd(self, x):
+        if self.rank is not None and self.rank < min(x.shape):
+            # Use randomized truncated SVD
+            U, S, V = torch.svd_lowrank(x, q=self.rank, niter=self.niter)
+        else:
+            # Fallback to full SVD
+            U, S, V = torch.svd(x, some=True)
+        return U, S, V
+
+    def __call__(self, x):
+        U, S, V = self._svd(x)
+        return self.lamda * torch.sum(S)
+
+    def prox(self, x, delta=1.0):
+
+        # Get SVD
+        U, S, V = self._svd(x)
+        
+        # Calculate threshold
+        threshold = self.lamda * delta
+        S_thresh = torch.clamp(S - threshold, min=0.0)
+        
+        # Reconstruction
+        return (U * S_thresh.unsqueeze(0)) @ V.t()
+
+    def sub_grad(self, x):
+        U, S, V = self._svd(x)
+        return self.lamda * (U @ V.t())
+
+class reg_nuclear_conv_truncated:
+    def __init__(self, lamda=1.0, rank=None, niter=2):
+        self.lamda = lamda
+        self.rank = rank
+        self.niter = niter
+
+    def _svd(self, x):
+        mat = x.view(x.shape[0]*x.shape[1], -1)
+        if self.rank is not None and self.rank < min(mat.shape):
+            U, S, V = torch.svd_lowrank(mat, q=self.rank, niter=self.niter)
+        else:
+            U, S, V = torch.svd(mat, some=True)
+        return U, S, V, x.shape
+
+    def __call__(self, x):
+        U, S, V, shape = self._svd(x)
+        return self.lamda * torch.sum(S)
+
+    def prox(self, x, delta=1.0):
+        U, S, V, shape = self._svd(x)
+        S_thresh = torch.clamp(S - self.lamda * delta, min=0.0)
+        X_thresh = (U * S_thresh.unsqueeze(0)) @ V.t()
+        return X_thresh.view(*shape)
+
+    def sub_grad(self, x):
+        U, S, V, shape = self._svd(x)
+        grad = U @ V.t()
+        return self.lamda * grad.view(*shape)
+</file>
+
+<file path="notebooks/MLP-Classification.ipynb">
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "7bb3caf1",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Various torch packages\n",
+    "import torch\n",
+    "import torch.nn as nn\n",
+    "import torch.nn.functional as F\n",
+    "\n",
+    "# torchvision\n",
+    "from torchvision import datasets, transforms\n",
+    "\n",
+    "# ------------------------\n",
+    "# get up one directory \n",
+    "import sys, os\n",
+    "sys.path.append(os.path.abspath('../'))\n",
+    "# ------------------------\n",
+    "\n",
+    "# custom packages\n",
+    "import models.aux_funs as maf\n",
+    "import optimizers as op\n",
+    "import regularizers as reg\n",
+    "import train\n",
+    "import math\n",
+    "import utils.configuration as cf\n",
+    "import utils.datasets as ud\n",
+    "from models.fully_connected import fully_connected"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "1bc1ce83",
+   "metadata": {},
+   "source": [
+    "# Fix the random seed"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "2db27eff",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "random_seed = 2\n",
+    "cf.seed_torch(random_seed)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "d5aebc6f",
+   "metadata": {},
+   "source": [
+    "# Configure the experiment"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "ba3dcac0",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "sparse_init = 0.01\n",
+    "r = [1,0.7/math.sqrt(sparse_init)]\n",
+    "\n",
+    "conf_args = {#\n",
+    "    # data specification\n",
+    "    'data_file':\"../../Data\", 'train_split':0.80, 'data_set':\"CIFAR10\", 'download':True,\n",
+    "    # cuda\n",
+    "    'use_cuda':False, 'num_workers':0, 'cuda_device':0, 'pin_memory':True, 'train_split':0.80,\n",
+    "    #\n",
+    "    'epochs':100,\n",
+    "    # optimizer\n",
+    "    'delta':1.0, 'lr':0.1, 'lamda':1e-3, 'optim':\"LinBreg\",'beta':0.0,\n",
+    "    # initialization\n",
+    "    'sparse_init':sparse_init, 'r':r,\n",
+    "    # misc\n",
+    "    'random_seed':random_seed, 'eval_acc':True,\n",
+    "}\n",
+    "\n",
+    "conf = cf.Conf(**conf_args)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "17174855",
+   "metadata": {},
+   "source": [
+    "# Initiate the model"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "dbfa6692",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "model_kwargs = {'mean':conf.data_set_mean, 'std':conf.data_set_std}    \n",
+    "\n",
+    "# Determine input size based on dataset\n",
+    "if conf.data_set == \"CIFAR10\":\n",
+    "    input_size = 3072  # 32x32x3\n",
+    "elif conf.data_set in [\"MNIST\", \"FashionMNIST\"]:\n",
+    "    input_size = 784   # 28x28x1\n",
+    "else:\n",
+    "    input_size = 784  # Default fallback\n",
+    "    \n",
+    "sizes = [input_size, 200, 80, 10]  # Dynamically set input size\n",
+    "act_fun = torch.nn.ReLU()\n",
+    "    \n",
+    "model = fully_connected(sizes, act_fun, **model_kwargs)\n",
+    "best_model = train.best_model(fully_connected(sizes, act_fun, **model_kwargs).to(conf.device))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "096f66c7",
+   "metadata": {},
+   "source": [
+    "# Weight initialization"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "991a91ef",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "model_kwargs = {'mean':conf.data_set_mean, 'std':conf.data_set_std}    \n",
+    "def init_weights(conf, model):\n",
+    "    # sparsify\n",
+    "    maf.sparse_bias_uniform_(model, 0,conf.r[0])\n",
+    "    maf.sparse_weight_normal_(model, conf.r[1])\n",
+    "    \n",
+    "    maf.sparsify_(model, conf.sparse_init)\n",
+    "    model = model.to(conf.device)\n",
+    "    return model\n",
+    "\n",
+    "model = init_weights(conf,model)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "2e96961d",
+   "metadata": {},
+   "source": [
+    "# Optimizer"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "980c3413",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def init_opt(conf, model):\n",
+    "    weights_linear = maf.get_weights_linear(model)\n",
+    "    biases = maf.get_bias(model)\n",
+    "\n",
+    "    if conf.optim == \"SGD\":\n",
+    "        opt = torch.optim.SGD(model.parameters(), lr=conf.lr, momentum=conf.beta)\n",
+    "    elif conf.optim == \"LinBreg\":\n",
+    "        opt = op.LinBreg([{'params': weights_linear, 'lr' : conf.lr, 'reg' : reg.reg_l1(lamda=conf.lamda), 'momentum':conf.beta, 'delta':conf.delta},\n",
+    "                          {'params': biases, 'lr': conf.lr, 'momentum':conf.beta}])\n",
+    "    elif conf.optim == \"LinBregHeavyBall\":\n",
+    "        opt = op.LinBregHeavyBall([{'params': weights_linear, 'lr': conf.lr,\n",
+    "                                    'reg': reg.reg_l1(lamda=conf.lamda), 'momentum': conf.beta,\n",
+    "                                    'delta': conf.delta},\n",
+    "                                   {'params': biases, 'lr': conf.lr, 'momentum': conf.beta}])\n",
+    "    elif conf.optim == \"adam\":\n",
+    "        opt = op.AdaBreg([{'params': weights_linear, 'lr' : conf.lr, 'reg' : reg.reg_l1(lamda=conf.lamda)},\n",
+    "                          {'params': biases, 'lr': conf.lr}])\n",
+    "    elif conf.optim == \"ProxSGD\":\n",
+    "        opt = op.ProxSGD([{'params': weights_linear, 'lr' : conf.lr, 'reg' : reg.reg_l1(lamda=conf.lamda)},\n",
+    "                          {'params': biases, 'lr': conf.lr}])\n",
+    "    else:\n",
+    "        raise ValueError(\"Unknown Optimizer specified\")\n",
+    "\n",
+    "    # learning rate scheduler\n",
+    "    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, factor=0.5, patience=5,threshold=0.01)\n",
+    "    \n",
+    "    return opt, scheduler"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "dff6e6da",
+   "metadata": {},
+   "source": [
+    "# Dataset"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "7617e6bc",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "train_loader, valid_loader, test_loader = ud.get_data_set(conf)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "29aed2e9",
+   "metadata": {},
+   "source": [
+    "# History and Runs"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "0c0124dc",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Initialize history\n",
+    "tracked = ['acc', 'loss', 'linear_sparse', 'reg_vals']\n",
+    "\n",
+    "def reset_hist(tracked):\n",
+    "    train_hist = {}\n",
+    "    val_hist = {}\n",
+    "    return train_hist, val_hist\n",
+    "\n",
+    "# Initialize runs\n",
+    "params = [\n",
+    "    # LinBreg Runs\n",
+    "    {'optim': 'LinBreg','reps':1, 'lamda': 1e-3, 'random_seed':0, 'label':'LinBreg ($\\lambda=1$e-3)'}, # LinBreg, lamda:1e-3\n",
+    "    {'optim': 'LinBreg','reps':1, 'lamda': 1e-1, 'random_seed':0, 'label':'LinBreg ($\\lambda=1$e-1)'}, # LinBreg, lamda:1e-1\n",
+    "    # SGD Runs (Equivalent to LinBreg with lamda = 0.0)\n",
+    "    {'optim': 'LinBreg','reps':1, 'lamda': 0.0, 'random_seed':0, 'label':'SGD'}, # SGD\n",
+    "    # ProxGD Runs\n",
+    "    {'optim': 'ProxSGD','reps':1, 'lamda': 1e-4, 'random_seed':0, 'label':'ProxSDG ($\\lambda=1$e-4)'}, # ProxSGD, lamda:1e-4\n",
+    "    # LinBregHeavyBall Runs\n",
+    "    {'optim': 'LinBregHeavyBall', 'reps': 1, 'lamda': 1e-3, 'random_seed': 0, 'label': 'LinBregHeavyBall ($\\lambda=1$e-3)'}, # LinBregHeavyBall, lamda:1e-3\n",
+    "    {'optim': 'LinBregHeavyBall', 'reps': 1, 'lamda': 1e-1, 'random_seed': 0, 'label': 'LinBregHeavyBall ($\\lambda=1$e-1)'}, # LinBregHeavyBall, lamda:1e-1\n",
+    "]\n",
+    "\n",
+    "runs = cf.run(params)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "d1bf1e65",
+   "metadata": {},
+   "source": [
+    "# Training"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "49686c02",
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [],
+   "source": [
+    "while runs.step(conf):\n",
+    "    # -----------------------------------------------------------------------------------\n",
+    "    # Reinit weigts and the corresponding optimizer\n",
+    "    # -----------------------------------------------------------------------------------\n",
+    "    train_hist, val_hist = reset_hist(tracked)\n",
+    "    model = init_weights(conf, model)\n",
+    "    opt, scheduler = init_opt(conf, model)\n",
+    "    \n",
+    "    # -----------------------------------------------------------------------------------\n",
+    "    # train the model\n",
+    "    # -----------------------------------------------------------------------------------\n",
+    "    for epoch in range(conf.epochs):\n",
+    "        print(25*\"<>\")\n",
+    "        print(50*\"|\")\n",
+    "        print(25*\"<>\")\n",
+    "        print('Epoch:', epoch)\n",
+    "\n",
+    "        # ------------------------------------------------------------------------\n",
+    "        # train step, log the accuracy and loss\n",
+    "        # ------------------------------------------------------------------------\n",
+    "        train_data = train.train_step(conf, model, opt, train_loader)\n",
+    "\n",
+    "        # update history\n",
+    "        for key in tracked:\n",
+    "            if key in train_data:\n",
+    "                var_list = train_hist.setdefault(key, [])\n",
+    "                var_list.append(train_data[key])        \n",
+    "\n",
+    "        # ------------------------------------------------------------------------\n",
+    "        # validation step\n",
+    "        val_data = train.validation_step(conf, model, opt, valid_loader)\n",
+    "\n",
+    "        # update history\n",
+    "        for key in tracked:\n",
+    "            \n",
+    "            \n",
+    "            if key in val_data:\n",
+    "                var = val_data[key]\n",
+    "                if isinstance(var, list):\n",
+    "                    for i, var_loc in enumerate(var):\n",
+    "                        key_loc = key+\"_\" + str(i)\n",
+    "                        var_list = val_hist.setdefault(key_loc, [])\n",
+    "                        val_hist[key_loc].append(var_loc)\n",
+    "                else:\n",
+    "                    var_list = val_hist.setdefault(key, [])\n",
+    "                    var_list.append(var)    \n",
+    "\n",
+    "        # scheduler step\n",
+    "        scheduler.step(train_data['loss'])\n",
+    "        print(\"Learning rate:\",opt.param_groups[0]['lr'])\n",
+    "        \n",
+    "        # update beset model\n",
+    "        best_model(train_data['acc'], val_data['acc'], model=model)\n",
+    "\n",
+    "        \n",
+    "    # add values to the run history\n",
+    "    runs.add_history(train_hist, \"train\")\n",
+    "    runs.add_history(val_hist, \"val\")\n",
+    "            \n",
+    "    # update random seed\n",
+    "    cf.seed_torch(conf.random_seed)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "26b06121",
+   "metadata": {},
+   "source": [
+    "# Prepare Data\n",
+    "In this step we average over different runs of the same parameter configuration."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "7d610069",
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [],
+   "source": [
+    "import numpy as np\n",
+    "\n",
+    "hist = runs.history\n",
+    "keys = ['train_acc','val_acc','val_reg_vals_0','val_linear_sparse']\n",
+    "\n",
+    "\n",
+    "hist_idx = 0\n",
+    "for param in params:\n",
+    "    data = {}\n",
+    "    for key in keys:\n",
+    "        if not key in hist[hist_idx]:\n",
+    "            continue\n",
+    "        \n",
+    "        if key == 'train_acc' or key == 'val_acc' or key == 'val_linear_sparse':\n",
+    "            rescale = 100\n",
+    "        else:\n",
+    "            rescale = 1/param['lamda'] if param['lamda'] > 0.0 else 0.0\n",
+    "            \n",
+    "        n = len(hist[hist_idx][key])\n",
+    "        m = param.get('reps',1)\n",
+    "        data_loc = np.zeros(shape=(n,m))\n",
+    "        \n",
+    "        # assign data and save it into local array for mean and average\n",
+    "        for i in range(m):\n",
+    "            var = np.array(hist[hist_idx + i][key])\n",
+    "            data_loc[:,i] = rescale*var\n",
+    "            data[key+\"_run_\" + str(i)] = rescale*var\n",
+    "\n",
+    "        # mean and std of the data\n",
+    "        data[key+\"_mean\"] = np.mean(data_loc,axis=1)\n",
+    "        data[key+\"_std\"] = np.std(data_loc,axis=1)\n",
+    "        \n",
+    "        param['result'] = data\n",
+    "        \n",
+    "        # update the history index\n",
+    "    hist_idx += m"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "869ca35c",
+   "metadata": {},
+   "source": [
+    "# Setup plots and appearance"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "964a7112",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import matplotlib\n",
+    "import matplotlib.pyplot as plt\n",
+    "\n",
+    "plt.style.use('default')\n",
+    "plt.style.use('ggplot')\n",
+    "matplotlib.rcParams['mathtext.fontset'] = 'cm'\n",
+    "matplotlib.rcParams['font.family'] = 'STIXGeneral'\n",
+    "matplotlib.rcParams['font.size']=8\n",
+    "matplotlib.rcParams['lines.linewidth'] = 1\n",
+    "matplotlib.rcParams['lines.markersize'] = 2\n",
+    "matplotlib.rcParams['text.color'] = 'black'"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "5302ab61",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def plot_training_stats(ax, keys, data, label='', color='k',alpha=1.0, alpha_fill=0.2):\n",
+    "    for i in range(len(keys)):\n",
+    "        if not (keys[i]+'_mean') in data:\n",
+    "            continue\n",
+    "        # --------------------------------\n",
+    "        var_mean = data[keys[i]+'_mean']\n",
+    "        var_std = data[keys[i]+'_std']\n",
+    "        # --------------------------------\n",
+    "        epochs = np.arange(len(var_mean))\n",
+    "        ax[i].plot(epochs,var_mean, label=label, color=color,alpha=alpha)\n",
+    "        ax[i].fill_between(epochs, var_mean - var_std, var_mean + var_std, color=color, alpha=alpha_fill)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "0596d53c",
+   "metadata": {},
+   "source": [
+    "# Colors"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "dbe8cc69",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "cmp = matplotlib.cm.get_cmap(name='Accent')\n",
+    "colors = [\n",
+    "    cmp(0.7), #\n",
+    "    cmp(0.4), #\n",
+    "    cmp(0.0), #\n",
+    "    cmp(0.2), #\n",
+    "    cmp(0.8), #\n",
+    "    cmp(0.8), #\n",
+    "    cmp(0.3), #\n",
+    "]\n",
+    "\n",
+    "for i, param in enumerate(params):\n",
+    "    param['color'] = colors[i]\n",
+    "    param.setdefault('label', param['optim'])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "17606bf4",
+   "metadata": {},
+   "source": [
+    "# Final Plot"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "01240bac",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "fig, ax = plt.subplots(2, 2)\n",
+    "ax = np.ravel(ax)\n",
+    "\n",
+    "for param in params:\n",
+    "    plot_training_stats(ax, keys, param['result'], color=param['color'], label=param['label'])\n",
+    "\n",
+    "# Specify axes\n",
+    "## Train Acc\n",
+    "ax[0].set_ylabel('Train Accuracy [%]')\n",
+    "ax[0].set_xlabel('Epoch')\n",
+    "ax[0].set_ylim(85, 101)\n",
+    "## Validation Acc\n",
+    "ax[1].set_ylabel('Validation Accuracy [%]')\n",
+    "ax[1].set_xlabel('Epoch')\n",
+    "## L1-Norm\n",
+    "ax[2].set_ylabel('$\\ell_1$-Norm')\n",
+    "ax[2].set_xlabel('Epoch')\n",
+    "## Sparsity\n",
+    "ax[3].set_ylabel('Non-Zero Entries [%]')\n",
+    "ax[3].set_xlabel('Epoch')\n",
+    "\n",
+    "# Legend: Move outside the plot area and reduce font size\n",
+    "handles, labels = ax[0].get_legend_handles_labels()\n",
+    "ax[0].legend(handles, labels, loc='upper left', bbox_to_anchor=(1.05, 1), prop={'size': 6}, ncol=1)\n",
+    "\n",
+    "# Adjust size\n",
+    "width = 5.50107 / 0.8\n",
+    "height = 8.02778 / (2.0)\n",
+    "fig.set_size_inches(width, height)\n",
+    "\n",
+    "# Adjust layout to make space for the legend\n",
+    "plt.tight_layout(rect=[0, 0, 0.95, 1])\n",
+    "\n",
+    "# Change color of one of the LinBregHeavyBall lines to blue\n",
+    "params[5]['color'] = 'blue'  # Change the color of the second LinBregHeavyBall"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "93e94369",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import pandas as pd\n",
+    "\n",
+    "optimizer_labels = [\n",
+    "    'LinBreg ($\\lambda=1$e-3)',\n",
+    "    'LinBreg ($\\lambda=1$e-1)',\n",
+    "    'SGD',\n",
+    "    'ProxSGD ($\\lambda=1$e-4)',\n",
+    "    'LinBregHeavyBall ($\\lambda=1$e-3)',\n",
+    "    'LinBregHeavyBall ($\\lambda=1$e-1)'\n",
+    "]\n",
+    "\n",
+    "records = []\n",
+    "\n",
+    "# Each run's history is stored in runs.history.\n",
+    "# We assume that for each run:\n",
+    "#    - run['label'] is the optimizer label (e.g., \"LinBreg ($\\lambda=1$e-3)\")\n",
+    "#    - run['lamda'] is the regularization parameter value\n",
+    "#    - run['train_acc'] and run['val_acc'] store the final accuracies.\n",
+    "#    - run['val_linear_sparse'] stores the sparsity level.\n",
+    "for i, run in enumerate(runs.history):\n",
+    "    label = optimizer_labels[i % len(optimizer_labels)]  # Use modulo to handle repetitions\n",
+    "    sparsity = run.get('val_linear_sparse', [None])[-1]\n",
+    "    train_acc = run.get('train_acc', [None])[-1]\n",
+    "    val_acc = run.get('val_acc', [None])[-1]\n",
+    "    \n",
+    "    records.append({\n",
+    "        'Optimizer': label,\n",
+    "        'Sparsity Level': sparsity,\n",
+    "        'Train Accuracy': train_acc,\n",
+    "        'Validation Accuracy': val_acc\n",
+    "    })\n",
+    "\n",
+    "df = pd.DataFrame(records)\n",
+    "print(df)"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "base",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.12.6"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
+</file>
+
+<file path="notebooks/ConvNet-Classification.ipynb">
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "044d7fce",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Various torch packages\n",
+    "import torch\n",
+    "import torch.nn as nn\n",
+    "import torch.nn.functional as F\n",
+    "\n",
+    "# torchvision\n",
+    "from torchvision import datasets, transforms\n",
+    "\n",
+    "# ------------------------\n",
+    "# get up one directory \n",
+    "import sys, os\n",
+    "sys.path.append(os.path.abspath('../'))\n",
+    "# ------------------------\n",
+    "\n",
+    "# custom packages\n",
+    "import models.aux_funs as maf\n",
+    "import optimizers as op\n",
+    "import regularizers as reg\n",
+    "import train\n",
+    "import math\n",
+    "import numpy as np\n",
+    "import time\n",
+    "import matplotlib.pyplot as plt\n",
+    "import utils.configuration as cf\n",
+    "import utils.datasets as ud\n",
+    "from models.mnist_conv import mnist_conv\n",
+    "from scipy.interpolate import make_interp_spline"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "febb1290",
+   "metadata": {},
+   "source": [
+    "# Fix the random seed"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "ebf73f95",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "random_seed = 0\n",
+    "cf.seed_torch(random_seed)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "dce1cf2a",
+   "metadata": {},
+   "source": [
+    "# Configure the experiment"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "3c3dd52e",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "conf_args = {#\n",
+    "    # data specification\n",
+    "    'data_file':\"../../datasets\",'train_split':0.95, 'data_set':\"Fashion-MNIST\", 'download':True,\n",
+    "    # cuda\n",
+    "    'use_cuda':False, 'num_workers':2, 'cuda_device':0, 'pin_memory':True, 'train_split':0.95,\n",
+    "    #\n",
+    "    'epochs':50,\n",
+    "    # optimizer\n",
+    "    'delta':1.0, 'lr':0.1, 'lamda_0':1e-4, 'lamda_1':0.008, 'optim':\"LinBreg\", 'conv_group':True,\n",
+    "    'beta':0.9,\n",
+    "    # initialization\n",
+    "    'sparse_init':0.01, 'r':[10.,10.,10.],\n",
+    "    # misc\n",
+    "    'random_seed':random_seed, 'eval_acc':True,\n",
+    "}\n",
+    "\n",
+    "conf = cf.Conf(**conf_args)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "cf24fc71",
+   "metadata": {},
+   "source": [
+    "# Initiate the model"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "7b2a15fe",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "model_kwargs = {'mean':conf.data_set_mean, 'std':conf.data_set_std}    \n",
+    "\n",
+    "model = mnist_conv(**model_kwargs)\n",
+    "best_model = train.best_model(mnist_conv(**model_kwargs).to(conf.device))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "a2696003",
+   "metadata": {},
+   "source": [
+    "# Weight initialization"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "18e2e15b",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "model_kwargs = {'mean':conf.data_set_mean, 'std':conf.data_set_std}    \n",
+    "def init_weights(conf, model):\n",
+    "    # sparsify\n",
+    "    maf.sparse_bias_uniform_(model, 0,conf.r[0])\n",
+    "    maf.sparse_bias_uniform_(model, 0,conf.r[0], ltype=torch.nn.Conv2d)\n",
+    "    maf.sparse_weight_normal_(model, conf.r[1])\n",
+    "    maf.sparse_weight_normal_(model, conf.r[2], ltype=torch.nn.Conv2d)\n",
+    "    #\n",
+    "    maf.sparsify_(model, conf.sparse_init, ltype = nn.Conv2d, conv_group=conf.conv_group)\n",
+    "    maf.sparsify_(model, conf.sparse_init, ltype = nn.Linear)\n",
+    "    model = model.to(conf.device)    \n",
+    "    return model\n",
+    "\n",
+    "model = init_weights(conf,model)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "6ff0a86b",
+   "metadata": {},
+   "source": [
+    "# Optimizer"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "51048c70",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def init_opt(conf, model):\n",
+    "    # -----------------------------------------------------------------------------------\n",
+    "    # Get access to different model parameters\n",
+    "    # -----------------------------------------------------------------------------------\n",
+    "    weights_conv = maf.get_weights_conv(model)\n",
+    "    weights_linear = maf.get_weights_linear(model)\n",
+    "    biases = maf.get_bias(model)\n",
+    "    \n",
+    "    # -----------------------------------------------------------------------------------\n",
+    "    # Initialize optimizer\n",
+    "    # -----------------------------------------------------------------------------------\n",
+    "    if conf.conv_group:\n",
+    "        reg2 = reg.reg_l1_l2_conv(lamda=conf.lamda_0)\n",
+    "    else:\n",
+    "        reg2 = reg.reg_l1(lamda=conf.lamda_0)\n",
+    "    \n",
+    "    if conf.optim == \"SGD\":\n",
+    "        opt = torch.optim.SGD(model.parameters(), lr=conf.lr, momentum=conf.beta)\n",
+    "    elif conf.optim == \"LinBreg\": # change 'reg' to reg2 if want to use l1_l2 regularization as was previously\n",
+    "        opt = op.NuclearLinBreg([{'params': weights_conv, 'lr' : conf.lr, 'reg' : reg2, 'momentum':conf.beta,'delta':conf.delta},\n",
+    "                          # apply nuclear regularization to the conv layers, switch to l1 reg.reg_l1(lamda=conf.lamda_1) if needed\n",
+    "                          {'params': weights_linear, 'lr' : conf.lr, 'reg' : reg.reg_nuclear_linear_truncated(lamda=conf.lamda_1, rank=64), 'momentum':conf.beta,'delta':conf.delta},\n",
+    "                          {'params': biases, 'lr': conf.lr, 'momentum':conf.beta}])\n",
+    "    elif conf.optim == \"ProxSGD\":\n",
+    "        opt = op.ProxSGD([{'params': weights_conv, 'lr' : conf.lr, 'reg' : reg2, 'momentum':conf.beta,'delta':conf.delta},\n",
+    "                          {'params': weights_linear, 'lr' : conf.lr, 'reg' : reg.reg_nuclear_linear(lamda=conf.lamda_1), 'momentum':conf.beta,'delta':conf.delta},\n",
+    "                          {'params': biases, 'lr': conf.lr, 'momentum':conf.beta}])            \n",
+    "    elif conf.optim == \"AdaBreg\":\n",
+    "        opt = op.AdaBreg([{'params': weights_conv, 'lr' : conf.lr, 'reg' : reg.reg_nuclear_conv(lamda=conf.lamda_0),'delta':conf.delta},\n",
+    "                           {'params': weights_linear, 'lr' : conf.lr, 'reg' : reg.reg_l1(lamda=conf.lamda_1),'delta':conf.delta},\n",
+    "                           {'params': biases, 'lr': conf.lr}])\n",
+    "    elif conf.optim == \"L1SGD\":\n",
+    "        def weight_reg(model):\n",
+    "            reg1 =  reg.reg_l1(lamda=conf.lamda_1)\n",
+    "        \n",
+    "            loss1 = reg1(model.layers2[0].weight) + reg1(model.layers2[2].weight)\n",
+    "            loss2 = reg2(model.layers1[0].weight) + reg2(model.layers1[3].weight)\n",
+    "            return loss1 + loss2\n",
+    "        \n",
+    "        conf.weight_reg = weight_reg\n",
+    "        \n",
+    "        opt = torch.optim.SGD(model.parameters(), lr=lr, momentum=beta)\n",
+    "    else:\n",
+    "        raise ValueError(\"Unknown Optimizer specified\")\n",
+    "\n",
+    "    # learning rate scheduler\n",
+    "    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, factor=0.5, patience=5,threshold=0.01)\n",
+    "    \n",
+    "    return opt, scheduler"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "e6f9836a",
+   "metadata": {},
+   "source": [
+    "# Dataset"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "53442c83",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "train_loader, valid_loader, test_loader = ud.get_data_set(conf)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c6d4ea23",
+   "metadata": {},
+   "source": [
+    "# History and Runs"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "985cdc04",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Initialize history\n",
+    "tracked = ['loss', 'node_sparse']\n",
+    "train_hist = {}\n",
+    "val_hist = {}"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "51e6adef",
+   "metadata": {},
+   "source": [
+    "# Training"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "d2d28eb1",
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [],
+   "source": [
+    "# Add at the top of your training cell\n",
+    "import time\n",
+    "\n",
+    "# -----------------------------------------------------------------------------------\n",
+    "# Reinit weights and the corresponding optimizer\n",
+    "# -----------------------------------------------------------------------------------\n",
+    "model = init_weights(conf, model)\n",
+    "opt, scheduler = init_opt(conf, model)\n",
+    "\n",
+    "# Initialize history for tracking both metrics\n",
+    "effective_rank_histories = {}  # Dictionary to store rank history for each layer\n",
+    "test_accuracy_history = []\n",
+    "\n",
+    "# Initialize timer variables\n",
+    "total_training_time = 0.0\n",
+    "\n",
+    "# -----------------------------------------------------------------------------------\n",
+    "# train the model\n",
+    "# -----------------------------------------------------------------------------------\n",
+    "for epoch in range(conf.epochs):\n",
+    "    print(25*\"<>\")\n",
+    "    print(50*\"|\")\n",
+    "    print(25*\"<>\")\n",
+    "    print('Epoch:', epoch)\n",
+    "    \n",
+    "    # Start timer for this epoch\n",
+    "    epoch_start = time.time()\n",
+    "\n",
+    "    # ------------------------------------------------------------------------\n",
+    "    # train step, log the accuracy and loss\n",
+    "    # ------------------------------------------------------------------------\n",
+    "    train_data = train.train_step(conf, model, opt, train_loader)\n",
+    "\n",
+    "    # update history\n",
+    "    for key in tracked:\n",
+    "        if key in train_data:\n",
+    "            var_list = train_hist.setdefault(key, [])\n",
+    "            var_list.append(train_data[key])           \n",
+    "\n",
+    "    # ------------------------------------------------------------------------\n",
+    "    # validation step\n",
+    "    # ------------------------------------------------------------------------\n",
+    "    val_data = train.validation_step(conf, model, opt, valid_loader)\n",
+    "\n",
+    "    # Calculate and record time for this epoch\n",
+    "    epoch_time = time.time() - epoch_start\n",
+    "    total_training_time += epoch_time\n",
+    "    \n",
+    "    print(f\"Epoch {epoch} training time: {epoch_time:.2f} seconds\")\n",
+    "    print(f\"Total training time so far: {total_training_time:.2f} seconds\")\n",
+    "    \n",
+    "    # Rest of your code for tracking metrics (this doesn't count toward training time)\n",
+    "    # update validation history\n",
+    "    for key in tracked:\n",
+    "        if key in val_data:\n",
+    "            var = val_data[key]\n",
+    "            if isinstance(var, list):\n",
+    "                for i, var_loc in enumerate(var):\n",
+    "                    key_loc = key+\"_\" + str(i)\n",
+    "                    var_list = val_hist.setdefault(key_loc, [])\n",
+    "                    val_hist[key_loc].append(var_loc)\n",
+    "            else:\n",
+    "                var_list = val_hist.setdefault(key, [])\n",
+    "                var_list.append(var)   \n",
+    "\n",
+    "    # Track effective rank ratio for each FC layer separately\n",
+    "    fc_layer_ranks = maf.get_linear_layer_ranks(model, epsilon=1e-3)\n",
+    "    for layer_name, rank_ratio in fc_layer_ranks.items():\n",
+    "        if layer_name not in effective_rank_histories:\n",
+    "            effective_rank_histories[layer_name] = []\n",
+    "        effective_rank_histories[layer_name].append(rank_ratio)\n",
+    "        print(f'Layer {layer_name} rank ratio (ε=1e-3): {rank_ratio:.4f}')\n",
+    "    \n",
+    "    # Also track test accuracy each epoch\n",
+    "    test_data = train.test(conf, model, test_loader, verbosity=0)\n",
+    "    test_accuracy_history.append(test_data['acc'])\n",
+    "    print(f'Test Accuracy: {test_data[\"acc\"]:.4f}')\n",
+    "\n",
+    "    scheduler.step(train_data['loss'])\n",
+    "    print(\"Learning rate:\", opt.param_groups[0]['lr'])\n",
+    "    best_model(train_data['acc'], val_data['acc'], model=model)\n",
+    "\n",
+    "# Print final timing information\n",
+    "print(\"\\n\" + \"=\"*50)\n",
+    "print(f\"Final total training time: {total_training_time:.2f} seconds\")\n",
+    "print(f\"Average time per epoch: {total_training_time/conf.epochs:.2f} seconds\")\n",
+    "print(\"=\"*50)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "aabbb46d-724c-4d45-a7b3-c5bfef8a3f03",
+   "metadata": {},
+   "source": [
+    "# Evaluation"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "2f7c82a0-6940-4c33-bcb2-c4b2ab56171b",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "train.test(conf, best_model.best_model, test_loader) \n",
+    "print(f'Convolution kernel sparsity: {maf.conv_sparsity(best_model.best_model)}')\n",
+    "print(f'Linear sparsity: {maf.linear_sparsity(best_model.best_model)}')\n",
+    "linear_rank_ratio = maf.linear_effective_rank_ratio(best_model.best_model, epsilon=1e-3)\n",
+    "print(f'Linear Layer Effective Rank Ratio (ε=1e-3): {linear_rank_ratio}')\n",
+    "fc_layer_ranks = maf.get_linear_layer_ranks(best_model.best_model, epsilon=1e-3)\n",
+    "for layer_name, rank_ratio in fc_layer_ranks.items():\n",
+    "    print(f'Layer {layer_name} rank ratio (ε=1e-3): {fc_layer_ranks[layer_name]}')\n",
+    "print(\"\\nSingular values of linear layers:\")\n",
+    "for name, m in best_model.best_model.named_modules():\n",
+    "    if isinstance(m, torch.nn.Linear):\n",
+    "        _, S, _ = torch.svd(m.weight, some=True)\n",
+    "        print(f\"Layer {name} singular values: {S[:10]}\")  # Show first 10 values"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "db2fc4af",
+   "metadata": {},
+   "source": [
+    "# Setup plots and appearance"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "85994ccb",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import matplotlib\n",
+    "import matplotlib.pyplot as plt\n",
+    "\n",
+    "plt.style.use('default')\n",
+    "plt.style.use('ggplot')\n",
+    "matplotlib.rcParams['mathtext.fontset'] = 'cm'\n",
+    "matplotlib.rcParams['font.family'] = 'STIXGeneral'\n",
+    "matplotlib.rcParams['font.size']=8\n",
+    "matplotlib.rcParams['lines.linewidth'] = 1\n",
+    "matplotlib.rcParams['lines.markersize'] = 2\n",
+    "matplotlib.rcParams['text.color'] = 'black'"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "af623214",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Create a figure with 1x2 subplots (rank ratio and accuracy)\n",
+    "fig, ax = plt.subplots(1, 2)\n",
+    "ax = np.ravel(ax)  # Convert to 1D array for consistent indexing\n",
+    "\n",
+    "# Create arrays for plotting\n",
+    "x = np.array(range(conf.epochs))\n",
+    "\n",
+    "# Dictionary to map layer names to more descriptive labels\n",
+    "layer_display_names = {\n",
+    "    'layers2.0': 'FCC 1 (1024→128)',  # First fully connected layer\n",
+    "    'layers2.2': 'FCC 2 (128→10)'     # Second fully connected layer\n",
+    "}\n",
+    "\n",
+    "# Plot effective rank ratio for each layer in first subplot - different colors\n",
+    "colors = ['blue', 'green', 'purple', 'orange', 'brown', 'pink']\n",
+    "for i, (layer_name, history) in enumerate(effective_rank_histories.items()):\n",
+    "    color = colors[i % len(colors)]\n",
+    "    # Get descriptive name or use original if not in the dictionary\n",
+    "    display_name = layer_display_names.get(layer_name, layer_name)\n",
+    "    # Convert to percentage\n",
+    "    history_percent = [val * 100 for val in history]\n",
+    "    ax[0].plot(x, history_percent, linestyle='-', color=color, label=f'{display_name} Rank Ratio')\n",
+    "    ax[0].scatter(x, history_percent, color=color, s=20, alpha=0.5)\n",
+    "\n",
+    "# Plot test accuracy in second subplot - as before\n",
+    "# Convert to percentage\n",
+    "test_accuracy_percent = [acc * 100 for acc in test_accuracy_history]\n",
+    "ax[1].plot(x, test_accuracy_percent, linestyle='--', color='red', label='Test Accuracy')\n",
+    "ax[1].scatter(x, test_accuracy_percent, color='red', s=20, alpha=0.5)\n",
+    "\n",
+    "# Specify axes\n",
+    "## Effective Rank Ratio\n",
+    "ax[0].set_ylabel('Effective Rank Ratio [%]')\n",
+    "ax[0].set_xlabel('Epoch')\n",
+    "ax[0].grid(True, linestyle='--', alpha=0.7)\n",
+    "\n",
+    "## Test Accuracy\n",
+    "ax[1].set_ylabel('Test Accuracy [%]')\n",
+    "ax[1].set_xlabel('Epoch')\n",
+    "ax[1].grid(True, linestyle='--', alpha=0.7)\n",
+    "\n",
+    "# Modify x-axis to show labels at multiples of 5 for both subplots\n",
+    "max_epoch = len(x) - 1\n",
+    "xticks = [i for i in range(0, max_epoch+1, 5)]\n",
+    "if max_epoch not in xticks:\n",
+    "    xticks.append(max_epoch)\n",
+    "ax[0].set_xticks(xticks)\n",
+    "ax[1].set_xticks(xticks)\n",
+    "\n",
+    "# Get legend handles from both plots\n",
+    "handles = []\n",
+    "labels = []\n",
+    "for i in range(len(ax)):\n",
+    "    h, l = ax[i].get_legend_handles_labels()\n",
+    "    handles.extend(h)\n",
+    "    labels.extend(l)\n",
+    "\n",
+    "# Add a legend to the first subplot but position it outside\n",
+    "ax[0].legend(handles, labels, loc='upper left', bbox_to_anchor=(1.05, 1), prop={'size': 6}, ncol=1)\n",
+    "\n",
+    "# Adjust size and title\n",
+    "width = 5.50107 / 0.8\n",
+    "height = 8.02778 / (2.0)\n",
+    "fig.set_size_inches(width, height)\n",
+    "fig.suptitle('LinBreg with Nuclear Norm on FCC Layers', fontsize=10)\n",
+    "\n",
+    "# Adjust layout to make space for the legend\n",
+    "plt.tight_layout(rect=[0, 0, 0.85, 0.95])  # Adjust for legend space\n",
+    "\n",
+    "plt.show()"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.9.21"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
+</file>
+
+<file path="README.md">
+# 📈 BregmanLearning
+Implementation of the inverse scale space training algorithms for sparse neural networks, proposed in **A Bregman Learning Framework for Sparse Neural Networks** [[1]](#1).
+Feel free to use it and please refer to our paper when doing so.
+```
+@article{JMLR:v23:21-0545,
+  author  = {Leon Bungert and Tim Roith and Daniel Tenbrinck and Martin Burger},
+  title   = {A Bregman Learning Framework for Sparse Neural Networks},
+  journal = {Journal of Machine Learning Research},
+  year    = {2022},
+  volume  = {23},
+  number  = {192},
+  pages   = {1--43},
+  url     = {http://jmlr.org/papers/v23/21-0545.html}
+}
+```
+<p align="center">
+      <img src="https://user-images.githubusercontent.com/44805883/120522872-99294080-c3d5-11eb-9b9d-48809054be15.png" width="600">
+</p>
+
+## 💡 Method Description
+Our Bregman learning framework aims at training sparse neural networks in an inverse scale space manner, starting with very few parameters and gradually adding only relevant parameters during training. We train a neural network <img src="https://latex.codecogs.com/svg.latex?f_\theta:\mathcal{X}\rightarrow\mathcal{Y}" title="net"/> parametrized by weights <img src="https://latex.codecogs.com/svg.latex?\theta" title="weights"/> using the simple baseline algorithm
+<p align="center">
+      <img src="https://latex.codecogs.com/svg.latex?\begin{cases}v\gets\,v-\tau\hat{\nabla}\mathcal{L}(\theta),\\\theta\gets\mathrm{prox}_{\delta\,J}(\delta\,v),\end{cases}" title="Update" />
+</p>
+
+where 
+* <img src="https://latex.codecogs.com/svg.latex?\mathcal{L}" title="loss"/> denotes a loss function with stochastic gradient <img src="https://latex.codecogs.com/svg.latex?\hat{\nabla}\mathcal{L}" title="stochgrad"/>,
+* <img src="https://latex.codecogs.com/svg.latex?J" title="J"/> is a sparsity-enforcing functional, e.g., the <img src="https://latex.codecogs.com/svg.latex?\ell_1" title="ell1"/>-norm,
+* <img src="https://latex.codecogs.com/svg.latex?\mathrm{prox}_{\delta\,J}" title="prox"/> is the proximal operator of <img src="https://latex.codecogs.com/svg.latex?J" title="J"/>.
+
+Our algorithm is based on linearized Bregman iterations [[2]](#2) and is a simple extension of stochastic gradient descent which is recovered choosing <img src="https://latex.codecogs.com/svg.latex?J=0" title="Jzero"/>. We also provide accelerations of our baseline algorithm using momentum and Adam [[3]](#3). 
+
+The variable <img src="https://latex.codecogs.com/svg.latex?v" title="v"/> is a subgradient of <img src="https://latex.codecogs.com/svg.latex?\theta" title="weights"/> with respect to the *elastic net* functional 
+
+<p align="center">
+      <img src="https://latex.codecogs.com/svg.latex?J_\delta(\theta)=J(\theta)+\frac1\delta\|\theta\|^2" title="el-net"/>
+</p>
+
+and stores the information which parameters are non-zero.
+
+## 🎲 Initialization
+
+We use a *sparse initialization strategy* by initializing parameters non-zero with a small probability.
+Their variance is chosen to avoid vanishing or exploding gradients, generalizing Kaiming-He or Xavier initialization.
+
+## 🔬 Experiments
+The different experiments can be executed as Jupyter notebooks in the 
+[notebooks folder](https://github.com/TimRoith/BregmanLearning/tree/main/notebooks).
+
+### Classification
+
+<p align="center">
+      <img src="https://user-images.githubusercontent.com/44805883/120520997-bdd0e880-c3d4-11eb-9743-166b097fe70b.png" width="700">
+</p>
+
+#### Mulit Layer Perceptron
+In this experiment we consider the MNIST classification task using a simple multilayer perceptron.
+We compare the LinBreg optimizer to standard SGD and proximal descent. The respective notebook can be found at 
+[MLP-Classification](https://github.com/TimRoith/BregmanLearning/blob/main/notebooks/MLP-Classification.ipynb).
+
+<p align="center">
+      <img src="https://user-images.githubusercontent.com/44805883/126574731-ad93c4fe-72e1-43c8-8e82-082045a312c0.png" width="700">
+</p>
+
+
+#### Convolutions and Group Sparsity
+In this experiment we consider the Fashion-MNIST classification task using a simple convolutional net. The experiment can be excecuted as a notebook, 
+namely via the file [ConvNet-Classification](https://github.com/TimRoith/BregmanLearning/blob/main/notebooks/ConvNet-Classification.ipynb).
+
+#### ResNet
+In this experiment we consider the CIFAR10 classification task using a ResNet. The experiment can be excecuted as a notebook, 
+namely via the file [ResNet-Classification](https://github.com/TimRoith/BregmanLearning/blob/main/notebooks/ResNet-Classification.ipynb).
+
+
+### NAS
+
+<p align="center">
+      <img src="https://user-images.githubusercontent.com/44805883/120520730-70547b80-c3d4-11eb-94f8-df36e24ad778.png" width="700">
+</p>
+
+This experiment implements the neural architecture search as proposed in  [[4]](#4). 
+
+The corresponding notebooks are 
+[DenseNet](https://github.com/TimRoith/BregmanLearning/blob/main/notebooks/DenseNet.ipynb) and 
+[Skip-Encoder](https://github.com/TimRoith/BregmanLearning/blob/main/notebooks/Skip-Encoder.ipynb).
+
+## :point_up: Miscellaneous
+
+The notebooks will throw errors if the datasets cannot be found. You can change the default configuration ```'download':False``` to ```'download':True``` in order to automatically download the necessary dataset and store it in the appropriate folder.
+
+If you want to run the code on your CPU you should replace ```'use_cuda':True, 'num_workers':4``` by ```'use_cuda':False, 'num_workers':0``` in the configuration of the notebook.
+
+## 📝 References
+<a id="1">[1]</a> Leon Bungert, Tim Roith, Daniel Tenbrinck, Martin Burger. "A Bregman Learning Framework for Sparse Neural Networks." Journal of Machine Learning Research 23.192 (2022): 1-43. https://www.jmlr.org/papers/v23/21-0545.html
+
+<a id="2">[2]</a> Woatao Yin, Stanley Osher, Donald Goldfarb, Jerome Darbon. "Bregman iterative algorithms for \ell_1-minimization with applications to compressed sensing." SIAM Journal on Imaging sciences 1.1 (2008): 143-168.
+
+<a id="3">[3]</a> Diederik Kingma, Jimmy Lei Ba. "Adam: A Method for Stochastic Optimization." arXiv preprint arXiv:1412.6980 (2014). https://arxiv.org/abs/1412.6980
+
+<a id="4">[4]</a> Leon Bungert, Tim Roith, Daniel Tenbrinck, Martin Burger. "Neural Architecture Search via Bregman Iterations." arXiv preprint arXiv:2106.02479 (2021). https://arxiv.org/abs/2106.02479
+</file>
+
+</files>
