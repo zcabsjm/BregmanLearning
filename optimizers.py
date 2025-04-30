@@ -449,3 +449,48 @@ class NuclearLambdaScheduler:
              self.wait = 0
              self.update_scheduled = False
 
+
+class RankScheduler:
+    """Scheduler for dynamically increasing the rank constraint"""
+    
+    def __init__(self, optimizer, group_idx, patience=2, increase_by=16, 
+                 steps_until_max=5, mode='min', verbose=False):
+        self.optimizer = optimizer
+        self.group_idx = group_idx
+        self.patience = patience
+        self.increase_by = increase_by
+        self.steps_until_max = steps_until_max
+        self.mode = mode
+        self.verbose = verbose
+        
+        # Check if the reg has dynamic rank capability
+        if not hasattr(optimizer.param_groups[group_idx]['reg'], 'set_rank'):
+            raise ValueError("Regularizer must support dynamic rank adjustment")
+        
+        self.best_value = float('inf') if mode == 'min' else -float('inf')
+        self.wait_count = 0
+        self.step_count = 0
+        
+    def step(self, metric_value):
+        """Update rank when validation loss plateaus"""
+        is_better = (metric_value < self.best_value) if self.mode == 'min' else (metric_value > self.best_value)
+        
+        if is_better:
+            self.best_value = metric_value
+            self.wait_count = 0
+        else:
+            self.wait_count += 1
+            
+        if self.wait_count >= self.patience and self.step_count < self.steps_until_max:
+            # Increase rank
+            reg = self.optimizer.param_groups[self.group_idx]['reg']
+            current_rank = reg.get_rank()
+            new_rank = current_rank + self.increase_by
+            actual_new_rank = reg.set_rank(new_rank)
+            
+            if self.verbose:
+                print(f"Increasing rank from {current_rank} to {actual_new_rank}")
+                
+            self.wait_count = 0
+            self.step_count += 1
+
