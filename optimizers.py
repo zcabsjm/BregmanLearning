@@ -367,3 +367,90 @@ class NuclearLinBreg(LinBreg):
                     
                     p.data = reg_instance.prox(delta * sub_grad, delta)
 
+
+class NuclearLambdaScheduler:
+    """
+    Decreases the lambda parameter for a regularizer in a specific parameter group
+    when a monitored metric has stopped improving. This is intended for nuclear
+    norm regularization to allow rank to increase when performance plateaus.
+
+    Args:
+        optimizer (Optimizer): Wrapped optimizer.
+        group_idx (int): Index of the parameter group whose regularizer's lambda to schedule.
+        patience (int): Number of epochs with no improvement after which lambda is reduced.
+                        Default: 5.
+        factor (float): Factor by which the lambda is reduced. new_lambda = lambda * factor.
+                        Default: 0.5.
+        min_lambda (float): Lower bound on the lambda parameter. Default: 1e-8.
+        mode (str): One of `min` or `max`. In `min` mode, lambda will be reduced when the
+                    quantity monitored has stopped decreasing; in `max` mode it will be reduced
+                    when the quantity monitored has stopped increasing. Default: 'min'.
+        verbose (bool): If True, prints a message to stdout for each update. Default: True.
+    """
+    def __init__(self, optimizer, group_idx, patience=5, factor=0.5, min_lambda=1e-8, mode='min', verbose=True):
+        if factor >= 1.0:
+            raise ValueError('Factor should be < 1.0.')
+        if mode not in {'min', 'max'}:
+            raise ValueError('Mode must be min or max.')
+
+        self.optimizer = optimizer
+        self.group_idx = group_idx
+        self.patience = patience
+        self.factor = factor
+        self.min_lambda = min_lambda
+        self.mode = mode
+        self.verbose = verbose
+
+        # Ensure the target group and regularizer exist and have a lambda
+        try:
+            self.reg_instance = self.optimizer.param_groups[self.group_idx]['reg']
+            if not hasattr(self.reg_instance, 'lamda'):
+                 raise AttributeError(f"Regularizer in group {group_idx} does not have a 'lamda' attribute.")
+            self.current_lambda = float(self.reg_instance.lamda) # Get initial lambda
+        except IndexError:
+            raise IndexError(f"Optimizer does not have parameter group with index {group_idx}.")
+        except AttributeError as e:
+             raise AttributeError(f"Could not access 'lamda' in regularizer for group {group_idx}: {e}")
+
+
+        self.best_metric = float('inf') if mode == 'min' else float('-inf')
+        self.wait = 0
+        self.update_scheduled = False # Flag to indicate if an update is pending
+
+    def step(self, metric_value):
+        """ Call this after the validation phase, passing the metric to monitor. """
+        improved = False
+        if self.mode == 'min':
+            if metric_value < self.best_metric:
+                self.best_metric = metric_value
+                improved = True
+        else: # mode == 'max'
+            if metric_value > self.best_metric:
+                self.best_metric = metric_value
+                improved = True
+
+        if improved:
+            self.wait = 0
+            self.update_scheduled = False # Reset schedule if improved
+        else:
+            self.wait += 1
+
+        if self.wait >= self.patience:
+             # Only schedule update if not already scheduled in this stagnation period
+            if not self.update_scheduled:
+                old_lambda = self.current_lambda
+                new_lambda = max(self.current_lambda * self.factor, self.min_lambda)
+                if new_lambda < old_lambda:
+                    # Schedule the update
+                    self.reg_instance.lamda = new_lambda
+                    self.current_lambda = new_lambda
+                    self.update_scheduled = True # Mark update as scheduled
+                    if self.verbose:
+                        print(f"\nNuclearLambdaScheduler: Metric stagnated for {self.patience} epochs. Reducing lambda for group {self.group_idx} to {new_lambda:.2e}")
+                elif self.verbose and not self.update_scheduled:
+                     print(f"\nNuclearLambdaScheduler: Metric stagnated, but lambda already at minimum {self.min_lambda:.2e}.")
+        # Reset wait counter if an update was just applied
+        if self.update_scheduled and improved:
+             self.wait = 0
+             self.update_scheduled = False
+
