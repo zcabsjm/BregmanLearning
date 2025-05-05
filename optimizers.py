@@ -494,3 +494,89 @@ class RankScheduler:
             self.wait_count = 0
             self.step_count += 1
 
+
+class LinBregNesterov(torch.optim.Optimizer):
+    """LinBreg optimizer with Nesterov-like momentum acceleration.
+    
+    This implementation adapts Nesterov accelerated gradient to the Bregman learning framework.
+    It approximates the effect of looking ahead without requiring additional gradient evaluations.
+    
+    Args:
+        params (iterable): Iterable of parameters to optimize
+        lr (float): Learning rate (default: 1e-3)
+        reg (object): Regularizer object (default: reg.reg_none())
+        delta (float): Scaling parameter for proximal operator (default: 1.0)
+        momentum (float): Momentum factor (default: 0.0)
+    """
+    
+    def __init__(self, params, lr=1e-3, reg=reg.reg_none(), delta=1.0, momentum=0.0):
+        if lr < 0.0:
+            raise ValueError("Invalid learning rate")
+        defaults = dict(lr=lr, reg=reg, delta=delta, momentum=momentum)
+        super(LinBregNesterov, self).__init__(params, defaults)
+    
+    @torch.no_grad()
+    def step(self, closure=None):
+        for group in self.param_groups:
+            delta = group['delta']
+            reg = group['reg']
+            step_size = group['lr']
+            momentum = group['momentum']
+            
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                
+                grad = p.grad.data
+                state = self.state[p]
+                
+                if len(state) == 0:
+                    state['step'] = 0
+                    state['sub_grad'] = self.initialize_sub_grad(p, reg, delta)
+                    state['momentum_buffer'] = torch.zeros_like(grad)
+                
+                sub_grad = state['sub_grad']
+                mom_buff = state['momentum_buffer']
+                
+                if momentum > 0:
+                    # Store old momentum buffer for Nesterov update
+                    old_mom_buff = mom_buff.clone()
+                    
+                    # Update momentum buffer (standard)
+                    mom_buff.mul_(momentum).add_(step_size * grad)
+                    
+                    # Apply Nesterov correction
+                    # Instead of evaluating gradient at x + momentum*v (which would require 
+                    # another forward-backward pass), we use the mathematical trick:
+                    # For NAG: v_next = momentum*v - lr*grad(x + momentum*v)
+                    # Approximated as: (1+momentum)*v_current - momentum*v_previous
+                    nesterov_update = (1 + momentum) * mom_buff - momentum * old_mom_buff
+                    
+                    # Update subgradient with Nesterov correction
+                    sub_grad.add_(-nesterov_update)
+                    
+                    # Store updated momentum buffer
+                    state['momentum_buffer'] = mom_buff
+                else:
+                    # Standard update without momentum
+                    sub_grad.add_(-step_size * grad)
+                
+                # Apply proximal update
+                p.data = reg.prox(delta * sub_grad, delta)
+    
+    def initialize_sub_grad(self, p, reg, delta):
+        p_init = p.data.clone()
+        return 1/delta * p_init + reg.sub_grad(p_init)
+    
+    @torch.no_grad()
+    def evaluate_reg(self):
+        reg_vals = []
+        for group in self.param_groups:
+            group_reg_val = 0.0
+            delta = group['delta']
+            reg = group['reg']
+            for p in group['params']:
+                group_reg_val += reg(p)
+            reg_vals.append(group_reg_val)
+        return reg_vals
+
