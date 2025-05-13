@@ -214,7 +214,7 @@ class AdaBreg(torch.optim.Optimizer):
     
     
 class lamda_scheduler:
-    '''scheduler for the regularization parameter'''
+    '''scheduler for the regularisation parameter'''
     def __init__(self, opt,idx, warmup = 0, increment = 0.05, cooldown=0, target_sparse=1.0, reg_param ="mu"):
         self.opt = opt
         self.group = opt.param_groups[idx]
@@ -259,110 +259,7 @@ class lamda_scheduler:
                     
         if verbosity > 0:
             print('Lamda was set to:', self.group['reg'].mu, ', cooldown on:',self.cooldown_val)
-
-
-class LinBregHeavyBall(torch.optim.Optimizer):
-    def __init__(self, params, lr=1e-3, reg=reg.reg_none(), delta=1.0, momentum=0.0):
-        if lr < 0.0:
-            raise ValueError("Invalid learning rate")
-        defaults = dict(lr=lr, reg=reg, delta=delta, momentum=momentum)
-        super(LinBregHeavyBall, self).__init__(params, defaults)
-    
-    @torch.no_grad()
-    def step(self, closure=None):
-        for group in self.param_groups:
-            delta = group['delta']
-            reg = group['reg']
-            step_size = group['lr']
-            momentum = group['momentum']
-            for p in group['params']:
-                if p.grad is None:
-                    continue
-                grad = p.grad.data
-                state = self.state[p]
-                if len(state) == 0:
-                    state['step'] = 0
-                    state['sub_grad'] = self.initialize_sub_grad(p, reg, delta)
-                    state['momentum_buffer'] = None
-                # update scheme
-                sub_grad = state['sub_grad']
-                if momentum > 0.0: # with heavy ball momentum
-                    mom_buff = state['momentum_buffer']
-                    if mom_buff is None:
-                        mom_buff = torch.zeros_like(grad)
-                    # heavy ball momentum update: v = momentum*v + step_size*grad
-                    mom_buff.mul_(momentum)
-                    mom_buff.add_(step_size * grad)
-                    state['momentum_buffer'] = mom_buff
-                    # update subgradient with the momentum buffer
-                    sub_grad.add_(-mom_buff)
-                else: # without momentum
-                    sub_grad.add_(-step_size * grad)
-                p.data = reg.prox(delta * sub_grad, delta)
-    
-    def initialize_sub_grad(self, p, reg, delta):
-        p_init = p.data.clone()
-        return 1 / delta * p_init + reg.sub_grad(p_init)
-    
-    @torch.no_grad()
-    def evaluate_reg(self):
-        reg_vals = []
-        for group in self.param_groups:
-            group_reg_val = 0.0
-            delta = group['delta']
-            reg = group['reg']
-            for p in group['params']:
-                group_reg_val += reg(p)
-            reg_vals.append(group_reg_val)
-        return reg_vals
-
-
-class NuclearLinBreg(LinBreg):
-    """Modified LinBreg that uses the standard LinBreg update for ALL regularizers,
-       including nuclear norm (potentially very expensive)."""
-
-    @torch.no_grad()
-    def step(self, closure=None):
-        for group in self.param_groups:
-            delta = group['delta']
-            reg_instance = group['reg']
-            step_size = group['lr']
-            momentum = group['momentum']
-
-            for p in group['params']:
-                if p.grad is None:
-                    continue
-
-                grad = p.grad.data
-                state = self.state[p]
-
-                if len(state) == 0:
-                    state['step'] = 0
-                    # Initialize subgradient using the base class method
-                    state['sub_grad'] = self.initialize_sub_grad(p, reg_instance, delta)
-                    state['momentum_buffer'] = None
-
-                # --- Always use the standard LinBreg update ---
-                sub_grad = state['sub_grad']
-
-                if momentum > 0.0:
-                    mom_buff = state['momentum_buffer']
-                    if mom_buff is None:
-                        mom_buff = torch.zeros_like(grad)
-
-                    # Standard momentum update (as in base LinBreg)
-                    mom_buff.mul_(momentum)
-                    mom_buff.add_((1 - momentum) * step_size * grad)
-                    state['momentum_buffer'] = mom_buff
-                    sub_grad.add_(-mom_buff) # Update subgradient using momentum buffer
-                else:
-                    # Standard subgradient update without momentum
-                    sub_grad.add_(-step_size * grad)
-
-                # Standard LinBreg parameter update step
-                p.data = reg_instance.prox(delta * sub_grad, delta)
-
-
+            
 class NuclearLambdaScheduler:
     """
     Decreases the lambda parameter for a regularizer in a specific parameter group
@@ -370,7 +267,7 @@ class NuclearLambdaScheduler:
     norm regularization to allow rank to increase when performance plateaus.
 
     Args:
-        optimizer (Optimizer): Wrapped optimizer.
+        optimizer: Wrapped optimizer.
         group_idx (int): Index of the parameter group whose regularizer's lambda to schedule.
         patience (int): Number of epochs with no improvement after which lambda is reduced.
                         Default: 5.
@@ -396,12 +293,11 @@ class NuclearLambdaScheduler:
         self.mode = mode
         self.verbose = verbose
 
-        # Ensure the target group and regularizer exist and have a lambda
         try:
             self.reg_instance = self.optimizer.param_groups[self.group_idx]['reg']
             if not hasattr(self.reg_instance, 'lamda'):
                  raise AttributeError(f"Regularizer in group {group_idx} does not have a 'lamda' attribute.")
-            self.current_lambda = float(self.reg_instance.lamda) # Get initial lambda
+            self.current_lambda = float(self.reg_instance.lamda) 
         except IndexError:
             raise IndexError(f"Optimizer does not have parameter group with index {group_idx}.")
         except AttributeError as e:
@@ -410,7 +306,7 @@ class NuclearLambdaScheduler:
 
         self.best_metric = float('inf') if mode == 'min' else float('-inf')
         self.wait = 0
-        self.update_scheduled = False # Flag to indicate if an update is pending
+        self.update_scheduled = False 
 
     def step(self, metric_value):
         """ Call this after the validation phase, passing the metric to monitor. """
@@ -546,10 +442,6 @@ class LinBregNesterov(torch.optim.Optimizer):
                     mom_buff.mul_(momentum).add_(step_size * grad)
                     
                     # Apply Nesterov correction
-                    # Instead of evaluating gradient at x + momentum*v (which would require 
-                    # another forward-backward pass), we use the mathematical trick:
-                    # For NAG: v_next = momentum*v - lr*grad(x + momentum*v)
-                    # Approximated as: (1+momentum)*v_current - momentum*v_previous
                     nesterov_update = (1 + momentum) * mom_buff - momentum * old_mom_buff
                     
                     # Update subgradient with Nesterov correction

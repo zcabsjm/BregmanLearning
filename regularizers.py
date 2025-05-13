@@ -127,14 +127,11 @@ class reg_nuclear_conv:
         self.lamda = lamda
 
     def __call__(self, x):
-        # Flatten to shape [m, n] = [out_ch*in_ch, kernel_h*kernel_w]
         mat = x.view(x.shape[0]*x.shape[1], -1)
-        # Use economy SVD so shapes match
         U, S, V = torch.svd(mat, some=True)
         return self.lamda * torch.sum(S)
 
     def prox(self, x, delta=1.0):
-        # Flatten
         mat = x.view(x.shape[0]*x.shape[1], -1)
         U, S, V = torch.svd(mat, some=True)
         Vh = V.t()
@@ -142,10 +139,8 @@ class reg_nuclear_conv:
         # Soft-threshold the singular values
         S_thresh = torch.clamp(S - self.lamda * delta, min=0.0)
         
-        # Multiply each column of U by the corresponding singular value
         X_thresh = (U * S_thresh.unsqueeze(0)) @ Vh
         
-        # Reshape back
         return X_thresh.view(*x.shape)
 
     def sub_grad(self, x):
@@ -162,7 +157,6 @@ class reg_nuclear_linear:
         self.lamda = lamda
 
     def __call__(self, x):
-        # x is [out_features, in_features]
         U, S, V = torch.svd(x, some=True)
         return self.lamda * torch.sum(S)
 
@@ -178,12 +172,12 @@ class reg_nuclear_linear:
 class reg_nuclear_linear_truncated:
     def __init__(self, lamda=1.0, rank=None, niter=2):
         self.lamda = lamda
-        self.rank = rank  # Number of singular values/vectors to compute
+        self.rank = rank  # Number of singular values to compute
         self.niter = niter  # Power iterations for accuracy
 
     def _svd(self, x):
         if self.rank is not None and self.rank < min(x.shape):
-            # Use randomized truncated SVD
+            # Use randomised truncated SVD
             U, S, V = torch.svd_lowrank(x, q=self.rank, niter=self.niter)
         else:
             # Fallback to full SVD
@@ -196,14 +190,11 @@ class reg_nuclear_linear_truncated:
 
     def prox(self, x, delta=1.0):
 
-        # Get SVD
         U, S, V = self._svd(x)
         
-        # Calculate threshold
         threshold = self.lamda * delta
         S_thresh = torch.clamp(S - threshold, min=0.0)
         
-        # Reconstruction
         return (U * S_thresh.unsqueeze(0)) @ V.t()
 
     def sub_grad(self, x):

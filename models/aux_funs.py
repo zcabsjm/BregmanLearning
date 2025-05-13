@@ -216,7 +216,7 @@ def conv_sparsity(model):
     else:
         return nnz/total
 
-def conv_effective_rank(model, epsilon=1e-3): # consider using fractional energy or stable rank
+def conv_effective_rank(model, epsilon=1e-3): 
     """
     Computes the average effective rank of all Conv2d layers.
     The effective rank of a single layer is the count of singular values > epsilon.
@@ -227,10 +227,8 @@ def conv_effective_rank(model, epsilon=1e-3): # consider using fractional energy
     for m in model.modules():
         if isinstance(m, torch.nn.Conv2d):
             w = m.weight
-            # Flatten each filter to one row: (out_channels, in_channels*kernel_height*kernel_width)
             mat = w.view(w.shape[0], -1)
 
-            # SVD on the flattened matrix
             U, S, V = torch.svd(mat, some=True)
 
             # Count how many singular values exceed epsilon
@@ -256,9 +254,8 @@ def conv_effective_rank_ratio(model, epsilon=1e-6):
     for m in model.modules():
         if isinstance(m, torch.nn.Conv2d):
             w = m.weight
-            # Flatten shape: (m, n) = (out_ch * in_ch, kernel_height * kernel_width)
-            m_dim = w.size(0) * w.size(1)  # out_ch*in_ch
-            n_dim = w.size(2) * w.size(3)  # kH*kW
+            m_dim = w.size(0) * w.size(1)  
+            n_dim = w.size(2) * w.size(3)  
             max_rank = min(m_dim, n_dim)
 
             mat = w.view(m_dim, n_dim)
