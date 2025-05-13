@@ -6,7 +6,6 @@ import random
 from itertools import cycle
 
 # custom imports
-from models.resnet import ResNet18
 from models.mnist_conv import mnist_conv
 from models.fully_connected import fully_connected
 import models.aux_funs as maf

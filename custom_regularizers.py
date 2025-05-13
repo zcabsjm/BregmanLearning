@@ -2,7 +2,7 @@ import torch
 import regularizers as reg
 
 class DynamicRankNuclearRegularizer(reg.reg_nuclear_linear):
-    """Nuclear norm regularizer with dynamically adjustable rank constraint"""
+    """Nuclear norm regulariser with dynamically adjustable rank constraint"""
     
     def __init__(self, lamda=1.0, initial_rank=16, max_rank=None):
         super().__init__(lamda=lamda)
@@ -11,18 +11,14 @@ class DynamicRankNuclearRegularizer(reg.reg_nuclear_linear):
         self.max_rank = max_rank
         
     def _svd(self, x):
-        """SVD with current rank constraint"""
         min_dim = min(x.shape)
         
-        # If current_rank is below min_dim and specified, use truncated SVD
         if self.current_rank is not None and self.current_rank < min_dim:
             try:
                 U, S, V = torch.svd_lowrank(x, q=self.current_rank, niter=2)
             except RuntimeError:
-                # Fallback to full SVD if low-rank version fails
                 U, S, V = torch.svd(x, some=True)
         else:
-            # Otherwise use full SVD
             U, S, V = torch.svd(x, some=True)
             
         return U, S, V
